@@ -16,7 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from passlib.context import CryptContext
 
 from app.db.models.client import Client
-from app.security.auth_client_manager import ClientAuthManager
+from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 from app.core.exceptions import (
     ResourceNotFoundException,
     InvalidCredentialsException,

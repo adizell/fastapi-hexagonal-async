@@ -1,4 +1,4 @@
-# app/security/permissions.py
+# app/adapters/outbound/security/permissions.py
 
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status

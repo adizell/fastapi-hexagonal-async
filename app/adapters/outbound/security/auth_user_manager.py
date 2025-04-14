@@ -1,4 +1,4 @@
-# app/security/auth_user_manager.py
+# app/adapters/outbound/security/auth_user_manager.py
 
 from datetime import datetime, timedelta
 from jose import jwt, JWTError

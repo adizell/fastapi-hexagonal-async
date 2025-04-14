@@ -1,4 +1,4 @@
-# app/security/token_gerar.py
+# app/adapters/outbound/security/token_gerar.py
 
 from passlib.context import CryptContext
 

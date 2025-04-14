@@ -15,8 +15,8 @@ from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 from app.adapters.inbound.api.deps import get_db_session
-from app.security.token_store import TokenStore
-from app.security.auth_client_manager import ClientAuthManager
+from app.adapters.outbound.security.token_store import TokenStore
+from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 from app.db.models.client import Client
 
 # Configurar logging

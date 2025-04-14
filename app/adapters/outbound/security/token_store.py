@@ -1,4 +1,4 @@
-# app/security/token_store.py
+# app/adapters/outbound/security/token_store.py
 
 from pydantic import BaseModel
 from typing import List

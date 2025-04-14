@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.db.models.user import User
 from app.db.models.client import Client
-from app.security.auth_user_manager import UserAuthManager
-from app.security.auth_client_manager import ClientAuthManager
+from app.adapters.outbound.security.auth_user_manager import UserAuthManager
+from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 
 # Configurar logger
 logger = logging.getLogger(__name__)

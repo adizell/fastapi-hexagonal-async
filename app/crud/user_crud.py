@@ -22,7 +22,7 @@ from app.core.exceptions import (
     DatabaseOperationException,
     InvalidCredentialsException
 )
-from app.security.auth_user_manager import UserAuthManager
+from app.adapters.outbound.security import UserAuthManager
 
 
 class UserCRUD(CRUDBase[User, UserCreate, UserUpdate]):
