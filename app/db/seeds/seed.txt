@@ -1,0 +1,9 @@
+# No terminal com o venv ativado, execute:
+python app/db/seeds.permissions.py
+
+
+# OU EXECUTE SCRIPT ABAIXO
+
+
+# Estando na raiz do projeto (C:\pycharm\rga-api)
+python -m app.db.seeds.permissions

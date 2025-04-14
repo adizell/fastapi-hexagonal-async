@@ -1,0 +1,43 @@
+# Usando docker-compose.yml
+docker-compose up app
+
+# Entrar dentro do container "-it: iterativo" entrar dentro do container
+docker exec -it fastapi-api bash
+
+# Criando a imagem após criar Dockerfile
+docker build . -t fastapi-api
+
+# Após criar docker-compose.yml
+#docker run --env-file .env -d -p 8000:8000 --name fastapi-api fastapi-api uvicorn app.main:app --host 0.0.0.0 --reload
+docker run -d -p 8000:8000 --name fastapi-api fastapi-api uvicorn app.main:app --host 0.0.0.0 --reload
+
+#####################################################
+# Verifique os logs do contêiner:
+docker logs fastapi-api
+
+# Se o arquivo já existir, ele será sobrescrito:
+docker logs fastapi-api > logs_fastapi_api.txt
+
+# Adicionar os logs ao final de um arquivo existente,
+# sem sobrescrever o conteúdo, use o operador >>:
+docker logs fastapi-api >> logs_fastapi_api.txt
+#####################################################
+
+# Para garantir que o contêiner fastapi-api esteja em execução quando o servidor for reiniciado
+sudo EDITOR=vim crontab -e
+
+# Adicione a seguinte linha ao final do arquivo para reiniciar o contêiner fastapi-api após a reinicialização do sistema:
+@reboot docker restart fastapi-api
+
+# Se precisar parar o contêiner posteriormente, usar o comando docker stop seguido do ID ou do nome do contêiner:
+docker stop fastapi-api
+
+# Para excluir uma imagem
+docker images
+docker rmi fastapi-api
+
+# Para forçar exclusão de um contêiner:
+docker rm -f bd601e85f943
+
+# Para limpar todos os cache e stop
+docker system prune

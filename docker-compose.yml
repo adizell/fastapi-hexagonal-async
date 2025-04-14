@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - 8000:8000
+    volumes:
+      - ./app:/app
+    env_file:
+      - ./.env
+    command: uvicorn app.main:app --host 0.0.0.0 --reload

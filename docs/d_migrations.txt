@@ -1,0 +1,20 @@
+# Iniciando sqlalchemy
+docker-compose run user --1000 app sh -c 'alembic init migrations'
+
+# O revision cria o script - database
+docker-compose run user --1000 app sh -c 'alembic revision --autogenerate -m "creating project"'
+
+# Depois do revision criar as tabelas - database
+docker-compose run user --1000 app sh -c 'alembic upgrade head'
+
+
+
+
+# Test de arquivo especifico
+docker-compose run app sh -c "pytest -k test_specie_use_case"
+
+docker-compose run app sh -c "pytest -k test_specie_routes"
+
+
+# Erros no docker
+rm ~/.docker/config.json

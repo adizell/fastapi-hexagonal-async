@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "FastAPI Hexagonal Async"
+version = "0.1.0"
+description = ""
+authors = ["adilsonmicuim <adilsonmicuim@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.110.2"
+uvicorn = "^0.29.0"
+sqlalchemy = "^2.0.39"
+psycopg2-binary = "^2.9.9"
+pytest = "^8.1.1"
+alembic = "^1.13.1"
+python-decouple = "^3.8"
+passlib = "^1.7.4"
+python-slugify = "^8.0.4"
+fastapi-pagination = "^0.12.24"
+httpx = "^0.27.0"
+python-jose = "^3.3.0"
+python-multipart = "^0.0.12"
+bcrypt = "^3.2.2"
+pyjwt = "^2.10.1"
+jinja2 = "^3.1.6"
+pydantic-settings = "^2.8.1"
+email-validator = "^2.2.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

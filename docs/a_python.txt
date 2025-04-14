@@ -1,0 +1,17 @@
+ Instalar o pyenv para gerenciar as versões de Python
+# https://github.com/pyenv/pyenv
+
+# Permissões para user adilson
+sudo chown -R adilson:adilson /exemplo
+sudo chmod -R u+rwx /exemplo
+
+# Criar ambiente virtual
+python -m venv venv
+
+# Ativar ambiente
+#WINDOWS:  source activate      .venv/Scripts/activate      . activate
+#LINUX:
+source venv/bin/activate
+
+# Interpreter
+/home/adilson/rga/venv/lib/python3.10

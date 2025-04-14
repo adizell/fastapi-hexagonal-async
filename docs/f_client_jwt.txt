@@ -1,0 +1,8 @@
+<HEADER>.<PAYLOAD>.<SIGNATURE>
+
+
+http://127.0.0.1:8000/create-url/client
+http://127.0.0.1:8000/create-jwt/client
+http://127.0.0.1:8000/update-url/client
+
+https://jwt.io/

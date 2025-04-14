@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Atualizar Client Secret</title>
+    <!-- Adicionei as tags de favicon DENTRO da seção head -->
+    <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/img/favicon.ico" type="image/x-icon">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f9f9f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 420px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        p {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+            color: #444;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        button {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .success {
+            background-color: #e6ffed;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+
+        .error {
+            background-color: #ffe6e6;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Atualizar Client Secret</h1>
+    <p>Informe o Client ID e sua senha de autorização para gerar uma nova chave.</p>
+
+    {% if success %}
+    <div class="success">
+        🟢 <strong>Client Secret atualizado com sucesso!</strong>
+        <br><br>
+        <div style="background: #f0f0f0; padding: 8px; border-radius: 6px; font-size: 0.85rem; word-break: break-all;">
+            {{ client_secret }}
+        </div>
+        <p style="font-size: 0.85rem; color: #155724;">
+            Guarde sua nova chave com segurança. Ela será exibida apenas uma vez.
+        </p>
+
+        {% if token %}
+        <hr>
+        <div style="margin-top: 10px;">
+            <strong>Token de Acesso:</strong>
+            <div style="word-break: break-all; background: #eef6ff; padding: 8px; border-radius: 6px; font-size: 0.85rem;">
+                {{ token }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% elif error %}
+    <div class="error">
+        🔴 {{ error }}
+    </div>
+    {% endif %}
+
+    <form action="/update-url/client" method="post">
+        <label for="client_id">Client ID:</label>
+        <input type="text" id="client_id" name="client_id" placeholder="Digite seu Client ID" required>
+
+        <label for="password">Senha de autorização:</label>
+        <input type="password" id="password" name="password" placeholder="Digite sua senha segura" required>
+
+        <button type="submit">Atualizar Chave Secreta</button>
+    </form>
+</div>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerar Token do Client</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Adicionei as tags de favicon DENTRO da seção head -->
+    <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/img/favicon.ico" type="image/x-icon">
+    <style>
+        body {
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }
+
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .message {
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Gerar Token do Client</h1>
+    <form action="/create-jwt/client" method="post">
+        <label for="client_id">Client ID</label>
+        <input type="text" id="client_id" name="username" required>
+
+        <label for="client_secret">Senha de autorização:</label>
+        <input type="password" id="client_secret" name="password" required>
+
+        <button type="submit">Gerar Token</button>
+    </form>
+
+    {% if token %}
+    <div class="message success">
+        🟢 Token gerado com sucesso!
+        <div style="margin-top: 10px;">
+            <strong>Token:</strong>
+            <div style="word-break: break-all; background: #f0f0f0; padding: 8px; border-radius: 6px; font-size: 0.85rem; margin-top: 6px;">
+                {{ token }}
+            </div>
+        </div>
+    </div>
+    {% elif error %}
+    <div class="message error">
+        🔴 {{ error }}
+    </div>
+    {% endif %}
+</div>
+</body>
+</html>
