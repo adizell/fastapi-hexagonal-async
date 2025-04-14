@@ -17,7 +17,7 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from app.adapters.inbound.api.v1.router import api_router as api_v1_router
 from app.adapters.inbound.api.v1.endpoints import client_auth
 
-from app.core.middleware import (
+from app.shared.middleware import (
     ExceptionMiddleware,
     RequestLoggingMiddleware,
     CSRFProtectionMiddleware,

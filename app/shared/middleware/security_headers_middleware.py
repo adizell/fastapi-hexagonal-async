@@ -1,4 +1,4 @@
-# app/core/middleware/security_headers_middleware.py
+# app/shared/middleware/security_headers_middleware.py
 
 """
 Middleware para adicionar cabeçalhos de segurança HTTP.

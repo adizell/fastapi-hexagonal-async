@@ -1,4 +1,4 @@
-# app/core/middleware/logging_middleware.py
+# app/shared/middleware/logging_middleware.py
 
 """
 Middleware para logging de requisições HTTP.

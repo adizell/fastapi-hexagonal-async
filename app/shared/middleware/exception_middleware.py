@@ -1,4 +1,4 @@
-# app/core/middleware/exception_middleware.py
+# app/shared/middleware/exception_middleware.py
 
 """
 Middleware para tratamento centralizado de exceções.
