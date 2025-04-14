@@ -6,4 +6,4 @@ python app/db/seeds.permissions.py
 
 
 # Estando na raiz do projeto (C:\pycharm\rga-api)
-python -m app.db.seeds.permissions
+python -m app.adapters.outbound.persistence.seeds.permissions

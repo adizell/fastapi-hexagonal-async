@@ -1,4 +1,4 @@
-# app/db/seeds/__init__.py
+# app/adapters/outbound/persistence/seeds/__init__.py
 
 """
 Módulo de seeds para inicialização do banco de dados.
@@ -10,7 +10,7 @@ com dados iniciais necessários para o funcionamento do sistema.
 import logging
 from sqlalchemy.orm import Session
 
-from app.db.seeds.permissions import run_permissions_seed
+from app.adapters.outbound.persistence.seeds.permissions import run_permissions_seed
 
 # Configurar logger
 logger = logging.getLogger(__name__)

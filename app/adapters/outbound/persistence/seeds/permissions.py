@@ -1,4 +1,4 @@
-# app/db/seeds/permissions.py
+# app/adapters/outbound/persistence/seeds/permissions.py
 
 """
 Script de seed para permissões e grupos de acesso.
