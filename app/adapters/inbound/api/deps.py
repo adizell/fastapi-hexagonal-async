@@ -1,4 +1,4 @@
-# app/api/deps.py
+# app/adapters/inbound/api/deps.py
 
 """
 Dependências para injeção nos endpoints da API.

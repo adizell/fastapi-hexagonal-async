@@ -1,0 +1,7 @@
+https://github.com/structure-codes/cli
+https://structure.codes/
+
+
+cd .\app\
+
+struct -i dist -o app.tree

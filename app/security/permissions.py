@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 
-from app.api.deps import get_session, get_current_user
+from app.adapters.inbound.api.deps import get_session, get_current_user
 from app.db.models.user import User
 
 

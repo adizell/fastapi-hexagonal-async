@@ -1,4 +1,4 @@
-# app/api/v1/endpoints/client_auth.py
+# app/adapters/inbound/api/v1/endpoints/client_auth.py
 
 """
 Endpoints para autenticação e gerenciamento de clients.
@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-from app.api.deps import get_db_session
+from app.adapters.inbound.api.deps import get_db_session
 from app.security.token_store import TokenStore
 from app.security.auth_client_manager import ClientAuthManager
 from app.db.models.client import Client

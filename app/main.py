@@ -14,8 +14,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
-from app.api.v1.router import api_router as api_v1_router
-from app.api.v1.endpoints import client_auth
+from app.adapters.inbound.api.v1.router import api_router as api_v1_router
+from app.adapters.inbound.api.v1.endpoints import client_auth
 
 from app.core.middleware import (
     ExceptionMiddleware,

@@ -1,10 +1,7 @@
-# app/api/v1/router.py
+# app/adapters/inbound/api/v1/router.py
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import (
-    user,
-    client_auth
-)
+from app.adapters.inbound.api.v1.endpoints import client_auth, user
 
 api_router = APIRouter()
 
