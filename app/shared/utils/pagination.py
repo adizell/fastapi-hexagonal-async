@@ -1,4 +1,4 @@
-# app/utils/pagination.py
+# app/shared/utils/pagination.py
 
 from fastapi import Query
 from fastapi_pagination import Params, LimitOffsetParams

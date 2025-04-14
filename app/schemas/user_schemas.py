@@ -12,7 +12,7 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional
 from app.schemas.base import CustomBaseModel
-from app.utils.input_validation import InputValidator
+from app.shared.utils.input_validation import InputValidator
 from pydantic import (
     field_validator,
     EmailStr,

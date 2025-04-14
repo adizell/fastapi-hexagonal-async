@@ -17,7 +17,7 @@ from app.schemas.user_schemas import (
 )
 from app.services.user_service import UserService
 from app.db.models.user import User
-from app.utils.pagination import pagination_params
+from app.shared.utils.pagination import pagination_params
 from app.adapters.outbound.security.permissions import require_superuser
 import logging
 

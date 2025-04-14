@@ -1,4 +1,4 @@
-# app/utils/email_validation.py
+# app/shared/utils/email_validation.py
 """
 Utilitários para validação e normalização de emails.
 """
