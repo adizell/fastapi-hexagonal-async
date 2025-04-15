@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from decouple import config
 
 from app.adapters.outbound.models.auth_group import AuthGroup
-from app.adapters.outbound.models.auth_permission import AuthPermission
+from app.adapters.outbound.persistence.models.auth_permission import AuthPermission
 from app.adapters.outbound.models.auth_content_type import AuthContentType
 
 # Configurações do banco

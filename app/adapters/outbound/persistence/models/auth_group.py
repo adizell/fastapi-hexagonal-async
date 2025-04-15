@@ -1,4 +1,4 @@
-# app/adapters/outbound/models/auth_group.py
+# app/adapters/outbound/persistence/models/auth_group.py
 
 """
 Modelo de grupo de permissões.

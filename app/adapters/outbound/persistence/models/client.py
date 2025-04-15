@@ -1,4 +1,4 @@
-# app/adapters/outbound/models/client.py
+# app/adapters/outbound/persistence/models/client.py
 
 """
 Modelo de client para autenticação e acesso à API.
@@ -8,7 +8,6 @@ ou sistemas externos autorizados a acessar a API.
 """
 
 from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, func
-from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 

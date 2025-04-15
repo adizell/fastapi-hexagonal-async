@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from passlib.context import CryptContext
 
-from app.adapters.outbound.models import Client
+from app.adapters.outbound.persistence.models import Client
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 from app.core.exceptions import (
     ResourceNotFoundException,

@@ -1,4 +1,4 @@
-# app/adapters/outbound/models/auth_permission.py
+# app/adapters/outbound/persistence/models/auth_permission.py
 
 """
 Modelo de permissão para controle de acesso.

@@ -11,7 +11,7 @@ from alembic import context
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.core.config import settings  # <- usa o config.py
-from app.adapters.outbound.models import Base
+from app.adapters.outbound.persistence.models import Base
 
 # Export da URL do banco para uso em outros módulos
 DB_URL = str(settings.DATABASE_URL)

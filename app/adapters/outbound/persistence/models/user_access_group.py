@@ -1,4 +1,4 @@
-# app/adapters/outbound/models/user_access_permission.py
+# app/adapters/outbound/persistence/models/user_access_group.py
 
 from sqlalchemy import Column, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import UUID
@@ -6,12 +6,12 @@ from sqlalchemy import BigInteger
 from app.db.base import Base
 
 ########################################################################
-# Tabela de associação many-to-many entre usuários e permissões
+# Tabela de associação many-to-many entre usuários e grupos
 ########################################################################
 
-user_access_permission = Table(
-    "user_access_permission",
+user_access_groups = Table(
+    "user_access_groups",
     Base.metadata,
     Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("permission_id", BigInteger, ForeignKey("auth_permission.id", ondelete="CASCADE"), primary_key=True),
+    Column("group_id", BigInteger, ForeignKey("auth_group.id", ondelete="CASCADE"), primary_key=True),
 )
