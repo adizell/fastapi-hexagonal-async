@@ -1,14 +1,14 @@
 # app/domain/__init__.py
 
 """
-Módulo principal para componentes do core da aplicação.
+Módulo principal para componentes do domínio da aplicação.
 
-Este módulo exporta exceções, configurações e utilitários core.
+Este módulo exporta exceções, configurações e utilitários do domínio.
 """
 
 # Exportar todas as exceções para facilitar a importação
 from app.domain.exceptions import (
-    ALPException,
+    DomainException,               # Exceção base pura do domínio
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
     ResourceInactiveException,
@@ -16,7 +16,6 @@ from app.domain.exceptions import (
     InvalidCredentialsException,
     DatabaseOperationException,
     InvalidInputException,
-    CategoryException
 )
 
 # Exportar configurações

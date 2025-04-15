@@ -19,7 +19,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from starlette.middleware.base import BaseHTTPMiddleware
 from jose.exceptions import JWTError, ExpiredSignatureError
 
-from app.domain.exceptions import ALPException
+from app.domain.exceptions import DomainException
 from app.adapters.configuration.config import settings
 
 # Configurar logger
@@ -40,31 +40,44 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             response.headers["X-Process-Time"] = str(process_time)
             return response
 
-        except ALPException as exc:
-            # Exceções da aplicação - já formatadas corretamente
+        except DomainException as exc:
+            # Exceções do domínio: mapeamento da exceção pura para código HTTP baseado em 'internal_code'
             logger.warning(
-                f"Exceção da aplicação: {exc.detail} | Código: {exc.internal_code} | "
-                f"Status: {exc.status_code} | Path: {request.url.path}"
+                f"Exceção do domínio: {str(exc)} | Código: {exc.internal_code} | "
+                f"Path: {request.url.path}"
             )
+            if exc.internal_code == "RESOURCE_NOT_FOUND":
+                status_code = status.HTTP_404_NOT_FOUND
+            elif exc.internal_code == "RESOURCE_ALREADY_EXISTS":
+                status_code = status.HTTP_409_CONFLICT
+            elif exc.internal_code == "PERMISSION_DENIED":
+                status_code = status.HTTP_403_FORBIDDEN
+            elif exc.internal_code == "INVALID_CREDENTIALS":
+                status_code = status.HTTP_401_UNAUTHORIZED
+            elif exc.internal_code == "DATABASE_OPERATION_ERROR":
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            elif exc.internal_code == "INVALID_INPUT":
+                status_code = status.HTTP_400_BAD_REQUEST
+            elif exc.internal_code == "RESOURCE_INACTIVE":
+                status_code = status.HTTP_400_BAD_REQUEST
+            else:
+                status_code = status.HTTP_400_BAD_REQUEST
+
             return JSONResponse(
-                status_code=exc.status_code,
+                status_code=status_code,
                 content={
-                    "detail": exc.detail,
-                    "code": exc.internal_code
-                },
-                headers=exc.headers
+                    "detail": str(exc),
+                    "code": exc.internal_code,
+                    "errors": getattr(exc, "details", {})
+                }
             )
 
         except IntegrityError as exc:
-            # Exceções de integridade do banco de dados - geralmente violações de restrições
-
-            # Extrair informações detalhadas para logging
+            # Erro de integridade do banco de dados
             error_info = str(exc)
             constraint_name = self._extract_constraint_name(error_info)
 
-            # Log detalhado com informações de constraint para debugging
             if settings.ENVIRONMENT == "production":
-                # Log mais seguro para produção
                 error_message = "Erro de integridade no banco de dados"
                 logger.error(
                     f"Erro de integridade: Tipo={type(exc).__name__} | "
@@ -73,8 +86,7 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
                     f"Cliente: {request.client.host if request.client else 'N/A'}"
                 )
             else:
-                # Log detalhado para ambientes não-produção
-                error_message = str(exc)
+                error_message = error_info
                 logger.error(
                     f"Erro de integridade: {error_info} | "
                     f"Constraint={constraint_name or 'N/A'} | "
@@ -83,7 +95,7 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
                 )
 
             return JSONResponse(
-                status_code=status.HTTP_409_CONFLICT,  # Mais apropriado para erros de integridade
+                status_code=status.HTTP_409_CONFLICT,
                 content={
                     "detail": error_message,
                     "code": f"INTEGRITY_ERROR{f'_{constraint_name}' if constraint_name else ''}"
@@ -91,7 +103,7 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except NoResultFound as exc:
-            # Exceção específica para quando um recurso não é encontrado via ORM
+            # Recurso não encontrado via ORM
             logger.warning(
                 f"Recurso não encontrado: {str(exc)} | "
                 f"Path: {request.url.path}"
@@ -105,8 +117,7 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except SQLAlchemyError as exc:
-            # Exceções de banco de dados
-            # Em produção, não expor os detalhes completos do erro
+            # Outros erros do SQLAlchemy
             if settings.ENVIRONMENT == "production":
                 error_message = "Erro interno de banco de dados"
                 logger.error(
@@ -131,16 +142,14 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except (JWTError, ExpiredSignatureError) as exc:
-            # Exceções relacionadas a autenticação JWT
+            # Erros relacionados a autenticação JWT
             error_type = "Token expirado" if isinstance(exc, ExpiredSignatureError) else "Token inválido"
-
             logger.warning(
                 f"Erro de autenticação: {error_type} | "
                 f"Tipo={type(exc).__name__} | "
                 f"Path: {request.url.path} | "
                 f"Cliente: {request.client.host if request.client else 'N/A'}"
             )
-
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={
@@ -150,13 +159,12 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except PermissionError as exc:
-            # Exceções de permissão (do Python)
+            # Erro de permissão (nativo do Python)
             logger.warning(
                 f"Erro de permissão: {str(exc)} | "
                 f"Path: {request.url.path} | "
                 f"Cliente: {request.client.host if request.client else 'N/A'}"
             )
-
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={
@@ -166,7 +174,7 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except ValueError as exc:
-            # Exceções de validação
+            # Erro de validação
             logger.warning(
                 f"Erro de validação: {str(exc)} | "
                 f"Path: {request.url.path} | "
@@ -182,7 +190,6 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
 
         except Exception as exc:
             # Exceções não tratadas
-            # Em produção, não expor os detalhes completos do erro
             if settings.ENVIRONMENT == "production":
                 error_message = "Erro interno do servidor"
                 logger.exception(
@@ -192,7 +199,6 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
                 )
             else:
                 error_message = str(exc)
-                # Em desenvolvimento, logar o traceback completo para debugging
                 stack_trace = traceback.format_exc()
                 logger.exception(
                     f"Exceção não tratada: {str(exc)} | "
@@ -200,7 +206,6 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
                     f"Cliente: {request.client.host if request.client else 'N/A'}\n"
                     f"Traceback: {stack_trace}"
                 )
-
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
@@ -223,17 +228,16 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
 
         # Padrões comuns para diferentes bancos de dados
         patterns = [
-            r'constraint "(.*?)"',  # PostgreSQL pattern
-            r'CONSTRAINT (.*?) FOREIGN KEY',  # MySQL pattern
-            r'CONSTRAINT `(.*?)`',  # MySQL pattern (backticks)
-            r'UNIQUE constraint failed: (.*)',  # SQLite pattern
-            r'violates unique constraint "(.*?)"',  # Another PostgreSQL pattern
-            r'duplicate key value violates unique constraint "(.*?)"'  # Yet another PostgreSQL pattern
+            r'constraint "(.*?)"',
+            r'CONSTRAINT (.*?) FOREIGN KEY',
+            r'CONSTRAINT `(.*?)`',
+            r'UNIQUE constraint failed: (.*)',
+            r'violates unique constraint "(.*?)"',
+            r'duplicate key value violates unique constraint "(.*?)"'
         ]
 
         for pattern in patterns:
             match = re.search(pattern, error_message)
             if match:
                 return match.group(1)
-
         return None
