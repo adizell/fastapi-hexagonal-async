@@ -148,7 +148,7 @@ async def create_client(
         })
 
     try:
-        from app.services.client_service import ClientService
+        from app.application.use_cases.client_use_cases import ClientService
         uc = ClientService(db_session)
         credentials = uc.create_client()
 
@@ -217,7 +217,7 @@ async def update_client_secret(
             })
 
         # Atualiza o secret do client
-        from app.services.client_service import ClientService
+        from app.application.use_cases.client_use_cases import ClientService
         uc = ClientService(db_session)
         result = uc.update_client_secret(client_id=client_id)
 

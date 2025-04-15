@@ -1,4 +1,4 @@
-# app/services/client_service.py
+# app/application/use_cases/client_use_cases.py
 
 """
 Serviço para gerenciamento de clientes.

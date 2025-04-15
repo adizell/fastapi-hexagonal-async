@@ -15,7 +15,7 @@ from app.application.dtos.user_schemas import (
     UserListOutput,
     UserSelfUpdate,
 )
-from app.services.user_service import UserService
+from app.application.use_cases.user_use_cases import UserService
 from app.adapters.outbound.persistence.models.user import User
 from app.shared.utils.pagination import pagination_params
 from app.adapters.outbound.security.permissions import require_superuser

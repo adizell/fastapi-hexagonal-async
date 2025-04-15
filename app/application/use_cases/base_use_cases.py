@@ -1,4 +1,4 @@
-# app/services/base_service.py
+# app/application/use_cases/base_use_cases.py
 
 """
 Classe base para todos os serviços da aplicação.

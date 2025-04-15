@@ -1,4 +1,4 @@
-# app/services/user_service.py
+# app/application/use_cases/user_use_cases.py
 
 """
 Serviço para gerenciamento de usuários.

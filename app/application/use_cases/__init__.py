@@ -1,4 +1,4 @@
-# app/services/__init__.py
+# app/application/use_cases/__init__.py
 
 """
 Módulo de serviços da aplicação.
@@ -8,9 +8,9 @@ da aplicação, organizados de acordo com os domínios funcionais.
 """
 
 # Exportar classes de serviço para facilitar importações
-from app.services.base_service import BaseService
-from app.services.client_service import ClientService
-from app.services.user_service import UserService
+from app.application.use_cases.base_use_cases import BaseService
+from app.application.use_cases.client_use_cases import ClientService
+from app.application.use_cases.user_use_cases import UserService
 
 # Exportar todos os serviços
 __all__ = [

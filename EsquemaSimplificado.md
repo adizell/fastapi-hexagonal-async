@@ -61,7 +61,7 @@ app/
 │   │                                            # serviços externos etc.
 │   └── use_cases/                             # Casos de uso ou serviços de aplicação com regras de negócio
 │       ├── client_use_cases.py                # Poderia agrupar lógica dos serviços de cliente
-│       └── user_use_cases.py                  # Lógica de uso de usuário (pode agrupar também o que está em services/)
+│       └── user_use_cases.py                  # Lógica de uso de usuário (pode agrupar também o que está em use_cases/)
 │
 ├── domain/
 │   ├── models/                                # Entidades e objetos de domínio
