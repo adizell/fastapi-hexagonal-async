@@ -1,4 +1,4 @@
-# app/db/models/auth_content_type.py
+# app/adapters/outbound/models/auth_content_type.py
 
 """
 Modelo de tipo de conteúdo para sistema de permissões.

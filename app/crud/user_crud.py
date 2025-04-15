@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi.encoders import jsonable_encoder
 
 from app.crud.base import CRUDBase
-from app.db.models.user import User
+from app.adapters.outbound.models import User
 from app.application.dtos.user_schemas import UserCreate, UserUpdate
 from app.core.exceptions import (
     ResourceNotFoundException,

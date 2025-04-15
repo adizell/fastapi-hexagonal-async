@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.crud.base import CRUDBase
-from app.db.models.client import Client
+from app.adapters.outbound.models import Client
 from app.application.dtos.client_schemas import Client as ClientSchema
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 from app.core.exceptions import (

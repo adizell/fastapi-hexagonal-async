@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session
 from fastapi_pagination import Params
 from fastapi_pagination.ext.sqlalchemy import paginate as sqlalchemy_paginate
 
-from app.db.models.user import User
-from app.db.models.auth_group import AuthGroup
+from app.adapters.outbound.models import User
+from app.adapters.outbound.models import AuthGroup
 from app.application.dtos.user_schemas import UserCreate, UserUpdate, UserSelfUpdate, TokenData
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 from app.core.exceptions import (

@@ -16,7 +16,7 @@ from app.application.dtos.user_schemas import (
     UserSelfUpdate,
 )
 from app.services.user_service import UserService
-from app.db.models.user import User
+from app.adapters.outbound.models.user import User
 from app.shared.utils.pagination import pagination_params
 from app.adapters.outbound.security.permissions import require_superuser
 import logging

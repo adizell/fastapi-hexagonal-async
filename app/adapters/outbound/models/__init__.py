@@ -1,4 +1,4 @@
-# app/adapters/outbound/persistence/models/__init__.py
+# app/adapters/outbound/models/__init__.py
 
 """
 Módulo de modelos de dados.
@@ -11,12 +11,14 @@ facilitando a importação e uso em outros módulos.
 from app.db.base import Base
 
 # Importar modelos principais
-from app.db.models.client import Client
+from app.adapters.outbound.models.user import User, user_access_groups, user_access_permission
+from app.adapters.outbound.models.client import Client
 
 # Importar modelos de autorização
-from app.db.models.auth_permission import AuthPermission
-from app.db.models.auth_content_type import AuthContentType
-from app.db.models.auth_group_permissions import auth_group_permissions
+from app.adapters.outbound.models.auth_group import AuthGroup
+from app.adapters.outbound.models.auth_permission import AuthPermission
+from app.adapters.outbound.models.auth_content_type import AuthContentType
+from app.adapters.outbound.models.auth_group_permissions import auth_group_permissions
 
 # Exportar todos os modelos
 __all__ = [

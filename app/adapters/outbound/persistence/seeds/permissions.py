@@ -12,10 +12,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from decouple import config
 
-from app.db.models.auth_group import AuthGroup
-from app.db.models.auth_permission import AuthPermission
-from app.db.models.auth_content_type import AuthContentType
-from app.db.base import Base
+from app.adapters.outbound.models.auth_group import AuthGroup
+from app.adapters.outbound.models.auth_permission import AuthPermission
+from app.adapters.outbound.models.auth_content_type import AuthContentType
 
 # Configurações do banco
 TEST_MODE = config("TEST_MODE", default=False, cast=bool)

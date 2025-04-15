@@ -1,4 +1,4 @@
-# app/db/models/auth_group_permissions.py
+# app/adapters/outbound/models/auth_group_permissions.py
 
 """
 Tabela de associação entre grupos e permissões.
