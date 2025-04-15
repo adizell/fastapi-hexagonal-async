@@ -1,9 +1,9 @@
-# app/schemas/client_management_schemas.py
+# app/application/dtos/client_management_schemas.py
 
 """
 Schemas para gerenciamento de clients.
 
-Este módulo define os schemas Pydantic para operações específicas
+Este módulo define os dtos Pydantic para operações específicas
 de gerenciamento de clients, como criação e atualização de credenciais.
 """
 

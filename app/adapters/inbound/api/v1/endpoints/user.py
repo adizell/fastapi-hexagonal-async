@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.inbound.api.deps import get_session, get_current_client, get_current_user, get_db_session
 from app.core.exceptions import ResourceInactiveException, ResourceNotFoundException, InvalidCredentialsException
-from app.schemas.user_schemas import (
+from app.application.dtos.user_schemas import (
     UserCreate,
     UserOutput,
     TokenData,

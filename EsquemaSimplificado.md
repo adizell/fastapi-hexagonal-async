@@ -50,7 +50,7 @@ app/
 │       └── config.py                          # Configurações gerais
 │
 ├── application/
-│   ├── dtos/                                  # Dados de transferência (equivalente aos schemas)
+│   ├── dtos/                                  # Dados de transferência (equivalente aos dtos)
 │   │   ├── base.py
 │   │   ├── client_schemas.py
 │   │   ├── client_management_schemas.py

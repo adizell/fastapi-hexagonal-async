@@ -15,14 +15,14 @@ from fastapi.encoders import jsonable_encoder
 
 from app.crud.base import CRUDBase
 from app.db.models.user import User
-from app.schemas.user_schemas import UserCreate, UserUpdate
+from app.application.dtos.user_schemas import UserCreate, UserUpdate
 from app.core.exceptions import (
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
     DatabaseOperationException,
     InvalidCredentialsException
 )
-from app.adapters.outbound.security import UserAuthManager
+from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 
 
 class UserCRUD(CRUDBase[User, UserCreate, UserUpdate]):

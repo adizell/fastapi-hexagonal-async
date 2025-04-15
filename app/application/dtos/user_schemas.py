@@ -1,9 +1,9 @@
-# app/schemas/user_schemas.py
+# app/application/dtos/user_schemas.py
 
 """
 Schemas para dados de usuário.
 
-Este módulo define os schemas Pydantic para validação e serialização
+Este módulo define os dtos Pydantic para validação e serialização
 dos dados relacionados a usuários, incluindo registro, login,
 manipulação de perfil e autenticação.
 """
@@ -11,7 +11,7 @@ manipulação de perfil e autenticação.
 from uuid import UUID
 from datetime import datetime
 from typing import Optional
-from app.schemas.base import CustomBaseModel
+from app.application.dtos.base import CustomBaseModel
 from app.shared.utils.input_validation import InputValidator
 from pydantic import (
     field_validator,
@@ -25,7 +25,7 @@ class UserBase(CustomBaseModel):
     """
     Schema base para dados de usuário.
 
-    Contém os atributos comuns a todos os schemas de usuário.
+    Contém os atributos comuns a todos os dtos de usuário.
     """
     email: EmailStr = Field(
         ...,

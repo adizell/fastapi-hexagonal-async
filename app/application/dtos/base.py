@@ -1,11 +1,11 @@
-# app/schemas/base.py
+# app/application/dtos/base.py
 
 """
-Classe base para schemas personalizados.
+Classe base para dtos personalizados.
 
 Este módulo define a classe base CustomBaseModel que estende
 o BaseModel do Pydantic com funcionalidades adicionais comuns
-a todos os schemas da aplicação.
+a todos os dtos da aplicação.
 """
 
 from pydantic import BaseModel
@@ -14,7 +14,7 @@ from typing import Any, Dict
 
 class CustomBaseModel(BaseModel):
     """
-    Modelo base personalizado para todos os schemas da aplicação.
+    Modelo base personalizado para todos os dtos da aplicação.
 
     Estende o BaseModel do Pydantic adicionando comportamentos personalizados,
     como a exclusão automática de valores None no método dict().

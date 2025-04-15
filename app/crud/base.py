@@ -22,7 +22,7 @@ from app.core.exceptions import (
 
 # Define tipo genérico para modelos SQLAlchemy
 ModelType = TypeVar("ModelType", bound=Base)
-# Define tipos genéricos para schemas Pydantic
+# Define tipos genéricos para dtos Pydantic
 CreateSchemaType = TypeVar("CreateSchemaType")
 UpdateSchemaType = TypeVar("UpdateSchemaType")
 

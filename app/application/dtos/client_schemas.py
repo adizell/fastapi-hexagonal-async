@@ -1,9 +1,9 @@
-# app/schemas/client_schemas.py
+# app/application/dtos/client_schemas.py
 
 """
 Schemas para dados de client (aplicações/parceiros).
 
-Este módulo define os schemas Pydantic para validação e serialização
+Este módulo define os dtos Pydantic para validação e serialização
 dos dados relacionados a clients que acessam a API.
 """
 
@@ -14,7 +14,7 @@ class ClientBase(BaseModel):
     """
     Schema base para dados de client.
 
-    Contém os atributos comuns a todos os schemas de client.
+    Contém os atributos comuns a todos os dtos de client.
     """
     client_id: str = Field(..., description="Identificador único do client")
 

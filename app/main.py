@@ -94,11 +94,11 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # Removendo os schemas indesejados da documentação
-    if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
+    # Removendo os dtos indesejados da documentação
+    if "components" in openapi_schema and "dtos" in openapi_schema["components"]:
         schemas_to_remove = ["HTTPValidationError", "ValidationError"]
         for schema in schemas_to_remove:
-            openapi_schema["components"]["schemas"].pop(schema, None)
+            openapi_schema["components"]["dtos"].pop(schema, None)
 
     # # Identificar tags duplicadas e consolidá-las
     # if "tags" in openapi_schema:
@@ -109,7 +109,7 @@ def custom_openapi():
     #             unique_tags[tag_name] = tag
     #     openapi_schema["tags"] = list(unique_tags.values())
 
-    # Remover o response 422 que referencia os schemas removidos
+    # Remover o response 422 que referencia os dtos removidos
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():
             if "responses" in operation and "422" in operation["responses"]:

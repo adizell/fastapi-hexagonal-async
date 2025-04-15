@@ -16,7 +16,7 @@ from fastapi_pagination.ext.sqlalchemy import paginate as sqlalchemy_paginate
 
 from app.db.models.user import User
 from app.db.models.auth_group import AuthGroup
-from app.schemas.user_schemas import UserCreate, UserUpdate, UserSelfUpdate, TokenData
+from app.application.dtos.user_schemas import UserCreate, UserUpdate, UserSelfUpdate, TokenData
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 from app.core.exceptions import (
     ResourceNotFoundException,
