@@ -1,4 +1,4 @@
-# app/core/database.py
+# app/adapters/outbound/persistence/database.py
 
 """
 Configuração de conexão com banco de dados.
@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session, Session
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 
-from app.core.config import settings
+from app.adapters.configuration.config import settings
 
 # Configurar logger
 logger = logging.getLogger(__name__)

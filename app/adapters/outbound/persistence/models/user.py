@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
-from app.db.base import Base
+from app.adapters.outbound.persistence.models.base_model import Base
 
 # Tabela de associação many-to-many entre usuários e grupos
 user_access_groups = Table(

@@ -8,7 +8,7 @@ facilitando a importação e uso em outros módulos.
 """
 
 # Importar Base
-from app.db.base import Base
+from app.adapters.outbound.persistence.models.base_model import Base
 
 # Importar modelos principais
 from app.adapters.outbound.persistence.models.user import User, user_access_groups, user_access_permission

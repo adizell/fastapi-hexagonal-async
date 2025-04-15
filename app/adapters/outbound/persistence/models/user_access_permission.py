@@ -3,7 +3,7 @@
 from sqlalchemy import Column, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import BigInteger
-from app.db.base import Base
+from app.adapters.outbound.persistence.models.base_model import Base
 
 ########################################################################
 # Tabela de associação many-to-many entre usuários e permissões

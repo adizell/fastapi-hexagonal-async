@@ -7,13 +7,13 @@ Este módulo define a estrutura básica que todos os serviços devem seguir,
 promovendo consistência e reutilização de código.
 """
 
-from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
+from typing import Generic, TypeVar, Type, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import logging
 
-from app.db.base import Base
-from app.core.exceptions import (
+from app.adapters.outbound.persistence.models.base_model import Base
+from app.domain.exceptions import (
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
     DatabaseOperationException,

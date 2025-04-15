@@ -10,7 +10,7 @@ from alembic import context
 # Ajusta path para poder importar a aplicação
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.core.config import settings  # <- usa o config.py
+from app.adapters.configuration.config import settings  # <- usa o config.py
 from app.adapters.outbound.persistence.models import Base
 
 # Export da URL do banco para uso em outros módulos

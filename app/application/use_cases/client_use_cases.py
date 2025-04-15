@@ -17,7 +17,7 @@ from passlib.context import CryptContext
 
 from app.adapters.outbound.persistence.models import Client
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
-from app.core.exceptions import (
+from app.domain.exceptions import (
     ResourceNotFoundException,
     InvalidCredentialsException,
     DatabaseOperationException,

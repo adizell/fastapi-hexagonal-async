@@ -18,7 +18,7 @@ from app.adapters.outbound.persistence.models import User
 from app.adapters.outbound.persistence.models import AuthGroup
 from app.application.dtos.user_schemas import UserCreate, UserUpdate, UserSelfUpdate, TokenData
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
-from app.core.exceptions import (
+from app.domain.exceptions import (
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
     InvalidCredentialsException,

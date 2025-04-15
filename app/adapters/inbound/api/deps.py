@@ -13,7 +13,7 @@ from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.adapters.outbound.persistence.database import get_db
 from app.adapters.outbound.persistence.models.user import User
 from app.adapters.outbound.persistence.models.client import Client
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager

@@ -1,4 +1,4 @@
-# app/core/__init__.py
+# app/domain/__init__.py
 
 """
 Módulo principal para componentes do core da aplicação.
@@ -7,7 +7,7 @@ Este módulo exporta exceções, configurações e utilitários core.
 """
 
 # Exportar todas as exceções para facilitar a importação
-from app.core.exceptions import (
+from app.domain.exceptions import (
     ALPException,
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
@@ -20,4 +20,4 @@ from app.core.exceptions import (
 )
 
 # Exportar configurações
-from app.core.config import settings
+from app.adapters.configuration.config import settings

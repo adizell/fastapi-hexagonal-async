@@ -8,7 +8,7 @@ entre grupos (AuthGroup) e permissões (AuthPermission).
 """
 
 from sqlalchemy import Table, Column, BigInteger, ForeignKey, UniqueConstraint
-from app.db.base import Base
+from app.adapters.outbound.persistence.models.base_model import Base
 
 # Tabela de associação entre grupos e permissões
 auth_group_permissions = Table(

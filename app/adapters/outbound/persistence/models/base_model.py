@@ -1,4 +1,4 @@
-# app/db/base.py
+# app/adapters/outbound/persistence/models/base_model.py
 
 from sqlalchemy.orm import declarative_base
 

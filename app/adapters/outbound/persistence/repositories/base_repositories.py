@@ -1,4 +1,4 @@
-# app/crud/base.py
+# app/adapters/outbound/persistence/repositories/base_repositories.py
 
 """
 Módulo base para todos os repositórios CRUD.
@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import logging
 
-from app.db.base import Base
-from app.core.exceptions import (
+from app.adapters.outbound.persistence.models.base_model import Base
+from app.domain.exceptions import (
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
     DatabaseOperationException

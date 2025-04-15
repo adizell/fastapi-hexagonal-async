@@ -1,4 +1,4 @@
-# app/core/config.py
+# app/adapters/configuration/config.py
 
 from pydantic import PostgresDsn, field_validator, ConfigDict
 from pydantic_settings import BaseSettings

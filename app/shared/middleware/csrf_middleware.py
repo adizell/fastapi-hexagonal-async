@@ -8,11 +8,11 @@ ataques CSRF, verificando cabeçalhos de origem e referenciador.
 """
 
 import logging
-from typing import List, Set, Optional
+from typing import Optional
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.core.config import settings
+from app.adapters.configuration.config import settings
 
 # Configurar logger
 logger = logging.getLogger(__name__)

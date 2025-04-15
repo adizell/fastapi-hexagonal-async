@@ -19,8 +19,8 @@ from sqlalchemy.orm.exc import NoResultFound
 from starlette.middleware.base import BaseHTTPMiddleware
 from jose.exceptions import JWTError, ExpiredSignatureError
 
-from app.core.exceptions import ALPException
-from app.core.config import settings
+from app.domain.exceptions import ALPException
+from app.adapters.configuration.config import settings
 
 # Configurar logger
 logger = logging.getLogger(__name__)

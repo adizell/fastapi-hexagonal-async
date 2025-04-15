@@ -10,7 +10,7 @@ Este módulo implementa um middleware que adiciona cabeçalhos de segurança
 import logging
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.core.config import settings
+from app.adapters.configuration.config import settings
 
 # Configurar logger
 logger = logging.getLogger(__name__)

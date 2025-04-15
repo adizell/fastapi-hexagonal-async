@@ -38,7 +38,7 @@ if __name__ == "__main__":
     Permite executar todos os seeds via linha de comando:
     `python -m app.db.seeds`
     """
-    from app.core.database import Session
+    from app.adapters.outbound.persistence.database import Session
 
     # Criar sessão
     session = Session()

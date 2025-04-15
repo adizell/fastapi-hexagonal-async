@@ -12,9 +12,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from decouple import config
 
-from app.adapters.outbound.models.auth_group import AuthGroup
+from app.adapters.outbound.persistence.models.auth_group import AuthGroup
 from app.adapters.outbound.persistence.models.auth_permission import AuthPermission
-from app.adapters.outbound.models.auth_content_type import AuthContentType
+from app.adapters.outbound.persistence.models.auth_content_type import AuthContentType
 
 # Configurações do banco
 TEST_MODE = config("TEST_MODE", default=False, cast=bool)
@@ -428,7 +428,7 @@ if __name__ == "__main__":
 #     Permite executar apenas o seed de permissões via linha de comando:
 #     `python -m app.db.seeds.permissions`
 #     """
-#     from app.core.database import Session
+#     from app.domain.database import Session
 #
 #     # Criar sessão
 #     session = Session()

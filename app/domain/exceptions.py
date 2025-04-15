@@ -1,4 +1,4 @@
-# app/core/exceptions.py
+# app/domain/exceptions.py
 
 """
 Exceções personalizadas para o aplicativo.
