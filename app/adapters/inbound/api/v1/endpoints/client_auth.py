@@ -17,7 +17,7 @@ import logging
 from app.adapters.inbound.api.deps import get_db_session
 from app.adapters.outbound.security.token_store import TokenStore
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
-from app.adapters.outbound.persistence.models.client import Client
+from app.adapters.outbound.persistence.models.client_model import Client
 
 # Configurar logging
 logger = logging.getLogger(__name__)

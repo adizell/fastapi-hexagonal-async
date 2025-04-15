@@ -1,4 +1,4 @@
-# app/adapters/outbound/persistence/models/client.py
+# app/adapters/outbound/persistence/models/client_model.py
 
 """
 Modelo de client para autenticação e acesso à API.

@@ -1,4 +1,4 @@
-# app/application/dtos/client_schemas.py
+# app/application/dtos/client_dto.py
 
 """
 Schemas para dados de client (aplicações/parceiros).

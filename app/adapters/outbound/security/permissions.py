@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 
 from app.adapters.inbound.api.deps import get_session, get_current_user
-from app.adapters.outbound.persistence.models.user import User
+from app.adapters.outbound.persistence.models.user_model import User
 
 
 def require_superuser(current_user: User = Depends(get_current_user)) -> User:

@@ -11,8 +11,8 @@ facilitando a importação e uso em outros módulos.
 from app.adapters.outbound.persistence.models.base_model import Base
 
 # Importar modelos principais
-from app.adapters.outbound.persistence.models.user import User, user_access_groups, user_access_permission
-from app.adapters.outbound.persistence.models.client import Client
+from app.adapters.outbound.persistence.models.user_model import User, user_access_groups, user_access_permission
+from app.adapters.outbound.persistence.models.client_model import Client
 
 # Importar modelos de autorização
 from app.adapters.outbound.persistence.models.auth_group import AuthGroup

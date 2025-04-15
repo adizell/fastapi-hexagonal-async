@@ -8,13 +8,13 @@ para as diferentes entidades do sistema, implementando o padrão Repository.
 """
 
 # Importar classes CRUD
-from app.adapters.outbound.persistence.repositories.base_repositories import CRUDBase
-from app.adapters.outbound.persistence.repositories.user_crud import UserCRUD
-from app.adapters.outbound.persistence.repositories.client_crud import ClientCRUD
+from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
+from app.adapters.outbound.persistence.repositories.user_repository import UserCRUD
+from app.adapters.outbound.persistence.repositories.client_repository import ClientCRUD
 
 # Importar instâncias singleton do CRUD
-from app.adapters.outbound.persistence.repositories.user_crud import user
-from app.adapters.outbound.persistence.repositories.client_crud import client
+from app.adapters.outbound.persistence.repositories.user_repository import user
+from app.adapters.outbound.persistence.repositories.client_repository import client
 
 # Exportar todas as classes e instâncias
 __all__ = [

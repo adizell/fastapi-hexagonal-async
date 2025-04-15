@@ -1,4 +1,4 @@
-# app/application/dtos/client_management_schemas.py
+# app/application/dtos/client_management_dto.py
 
 """
 Schemas para gerenciamento de clients.

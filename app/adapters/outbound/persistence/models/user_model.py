@@ -1,4 +1,4 @@
-# app/adapters/outbound/persistence/models/user.py
+# app/adapters/outbound/persistence/models/user_model.py
 
 """
 Modelo de usuário e associações relacionadas.

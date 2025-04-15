@@ -1,4 +1,4 @@
-# app/application/dtos/user_schemas.py
+# app/application/dtos/user_dto.py
 
 """
 Schemas para dados de usuário.
@@ -11,7 +11,7 @@ manipulação de perfil e autenticação.
 from uuid import UUID
 from datetime import datetime
 from typing import Optional
-from app.application.dtos.base_dtos import CustomBaseModel
+from app.application.dtos.base_dto import CustomBaseModel
 from app.shared.utils.input_validation import InputValidator
 from pydantic import (
     field_validator,

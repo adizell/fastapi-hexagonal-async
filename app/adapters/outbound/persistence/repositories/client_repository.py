@@ -1,4 +1,4 @@
-# app/adapters/outbound/persistence/repositories/client_crud.py
+# app/adapters/outbound/persistence/repositories/client_repository.py
 
 """
 Repositório CRUD para clientes.
@@ -13,9 +13,9 @@ from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.adapters.outbound.persistence.repositories.base_repositories import CRUDBase
+from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
 from app.adapters.outbound.persistence.models import Client
-from app.application.dtos.client_schemas import Client as ClientSchema
+from app.application.dtos.client_dto import Client as ClientSchema
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 from app.domain.exceptions import (
     ResourceNotFoundException,

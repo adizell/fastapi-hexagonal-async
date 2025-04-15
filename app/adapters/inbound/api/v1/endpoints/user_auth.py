@@ -1,4 +1,4 @@
-# app/adapters/inbound/api/v1/endpoints/user.py
+# app/adapters/inbound/api/v1/endpoints/user_auth.py
 
 import logging
 from uuid import UUID
@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException, Path
 from sqlalchemy.orm import Session
 
 from app.application.use_cases.user_use_cases import UserService
-from app.adapters.outbound.persistence.models.user import User
+from app.adapters.outbound.persistence.models.user_model import User
 from app.shared.utils.pagination import pagination_params
 from app.adapters.outbound.security.permissions import require_superuser
 from app.adapters.inbound.api.deps import (
@@ -21,7 +21,7 @@ from app.domain.exceptions import (
     ResourceNotFoundException,
     InvalidCredentialsException
 )
-from app.application.dtos.user_schemas import (
+from app.application.dtos.user_dto import (
     UserCreate,
     UserOutput,
     TokenData,
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# app/routes/user.py (verificar e ajustar o endpoint de registro)
+# app/routes/user_model.py (verificar e ajustar o endpoint de registro)
 
 @router.post(
     "/register",

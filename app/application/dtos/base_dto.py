@@ -1,4 +1,4 @@
-# app/application/dtos/base_dtos.py
+# app/application/dtos/base_dto.py
 
 """
 Classe base para dtos personalizados.

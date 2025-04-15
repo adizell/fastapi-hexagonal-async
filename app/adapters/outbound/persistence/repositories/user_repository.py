@@ -1,4 +1,4 @@
-# app/adapters/outbound/persistence/repositories/user_crud.py
+# app/adapters/outbound/persistence/repositories/user_repository.py
 
 """
 Repositório CRUD para usuários.
@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.encoders import jsonable_encoder
 
-from app.adapters.outbound.persistence.repositories.base_repositories import CRUDBase
+from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
 from app.adapters.outbound.persistence.models import User
-from app.application.dtos.user_schemas import UserCreate, UserUpdate
+from app.application.dtos.user_dto import UserCreate, UserUpdate
 from app.domain.exceptions import (
     ResourceNotFoundException,
     ResourceAlreadyExistsException,

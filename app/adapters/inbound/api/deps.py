@@ -14,8 +14,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.adapters.outbound.persistence.database import get_db
-from app.adapters.outbound.persistence.models.user import User
-from app.adapters.outbound.persistence.models.client import Client
+from app.adapters.outbound.persistence.models.user_model import User
+from app.adapters.outbound.persistence.models.client_model import Client
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 

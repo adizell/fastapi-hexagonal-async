@@ -1,4 +1,4 @@
-# app/adapters/outbound/persistence/repositories/base_repositories.py
+# app/adapters/outbound/persistence/repositories/base_repository.py
 
 """
 Módulo base para todos os repositórios CRUD.
