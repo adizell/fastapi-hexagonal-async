@@ -66,7 +66,7 @@ class UserService:
         if not user:
             logger.warning(f"Usuário não encontrado: ID {user_id}")
             raise ResourceNotFoundException(
-                detail="Usuário não encontrado",
+                message="Usuário não encontrado",
                 resource_id=user_id
             )
 
@@ -74,7 +74,7 @@ class UserService:
         if not user.is_active:
             logger.warning(f"Tentativa de acessar usuário inativo: ID {user_id}")
             raise ResourceInactiveException(
-                detail="Este usuário está inativo e não está disponível",
+                message="Este usuário está inativo e não está disponível",
                 resource_id=user_id
             )
 
@@ -98,14 +98,14 @@ class UserService:
         if not user:
             logger.warning(f"Usuário não encontrado: email {email}")
             raise ResourceNotFoundException(
-                detail="Usuário não encontrado com este email"
+                message="Usuário não encontrado com este email"
             )
 
         # Adicionar verificação de status ativo
         if not user.is_active:
             logger.warning(f"Tentativa de acessar usuário inativo: email {email}")
             raise ResourceInactiveException(
-                detail="Este usuário está inativo e não está disponível"
+                message="Este usuário está inativo e não está disponível"
             )
 
         return user
@@ -127,7 +127,7 @@ class UserService:
         if not group:
             error_msg = f"Grupo '{name}' não encontrado. Verifique a carga inicial (seed)."
             logger.error(error_msg)
-            raise DatabaseOperationException(detail=error_msg)
+            raise DatabaseOperationException(message=error_msg)
         return group
 
     def register_user(self, user_input: UserCreate) -> User:
@@ -150,7 +150,7 @@ class UserService:
             if existing_user:
                 logger.warning(f"Email já em uso no registro: {user_input.email}")
                 raise ResourceAlreadyExistsException(
-                    detail="Este email já está em uso"
+                    message="Este email já está em uso"
                 )
 
             # Criar o usuário (a validação já ocorre no Pydantic schema)
@@ -181,7 +181,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao registrar usuário: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao registrar o usuário. Tente novamente.",
+                message="Erro ao registrar o usuário. Tente novamente.",
                 original_error=e
             )
 
@@ -206,20 +206,20 @@ class UserService:
             if not user:
                 logger.warning(f"Tentativa de login com usuário inexistente: {user_input.email}")
                 raise InvalidCredentialsException(
-                    detail="Email ou senha inválidos"
+                    message="Email ou senha inválidos"
                 )
 
             if not user.is_active:
                 logger.warning(f"Tentativa de login com usuário inativo: {user_input.email}")
                 raise ResourceInactiveException(
-                    detail="Conta de usuário inativa",
+                    message="Conta de usuário inativa",
                     resource_id=user.id
                 )
 
             if not UserAuthManager.verify_password(user_input.password, user.password):
                 logger.warning(f"Tentativa de login com senha incorreta: {user_input.email}")
                 raise InvalidCredentialsException(
-                    detail="Email ou senha inválidos"
+                    message="Email ou senha inválidos"
                 )
 
             # Incluir expires_delta para calcular expires_at
@@ -247,7 +247,7 @@ class UserService:
         except Exception as e:
             logger.exception(f"Erro ao fazer login: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro durante o processo de login. Tente novamente.",
+                message="Erro durante o processo de login. Tente novamente.",
                 original_error=e
             )
 
@@ -271,7 +271,7 @@ class UserService:
             if not current_user.is_superuser:
                 logger.warning(f"Usuário sem permissão tentou listar todos os usuários: {current_user.email}")
                 raise PermissionDeniedException(
-                    detail="Apenas superusuários podem listar todos os usuários."
+                    message="Apenas superusuários podem listar todos os usuários."
                 )
 
             query = self.db.query(User)
@@ -287,7 +287,7 @@ class UserService:
         except Exception as e:
             logger.exception(f"Erro ao listar usuários: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao listar usuários",
+                message="Erro ao listar usuários",
                 original_error=e
             )
 
@@ -317,7 +317,7 @@ class UserService:
             if data.password and not data.current_password:
                 logger.warning(f"Tentativa de alterar senha sem fornecer senha atual: {user.email}")
                 raise InvalidCredentialsException(
-                    detail="Para alterar a senha, é necessário fornecer a senha atual."
+                    message="Para alterar a senha, é necessário fornecer a senha atual."
                 )
 
             # Verificar senha atual se for fornecida
@@ -325,7 +325,7 @@ class UserService:
                 if not UserAuthManager.verify_password(data.current_password, user.password):
                     logger.warning(f"Senha atual incorreta ao atualizar usuário: {user.email}")
                     raise InvalidCredentialsException(
-                        detail="Senha atual incorreta."
+                        message="Senha atual incorreta."
                     )
 
             # Atualizar campos
@@ -339,7 +339,7 @@ class UserService:
                 if existing:
                     logger.warning(f"Email já em uso ao atualizar usuário: {data.email}")
                     raise ResourceAlreadyExistsException(
-                        detail="Este email já está em uso."
+                        message="Este email já está em uso."
                     )
 
                 user.email = data.email
@@ -362,7 +362,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao atualizar usuário: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao atualizar o usuário.",
+                message="Erro ao atualizar o usuário.",
                 original_error=e
             )
 
@@ -389,7 +389,7 @@ class UserService:
             if not user:
                 logger.warning(f"Tentativa de atualizar usuário inexistente: {user_id}")
                 raise ResourceNotFoundException(
-                    detail="Usuário não encontrado",
+                    message="Usuário não encontrado",
                     resource_id=user_id
                 )
 
@@ -398,7 +398,7 @@ class UserService:
                 if not user.is_active and not is_reactivating:
                     logger.warning(f"Tentativa de atualizar usuário inativo: {user_id}")
                     raise ResourceInactiveException(
-                        detail="Este usuário está inativo. Use a operação de reativação primeiro.",
+                        message="Este usuário está inativo. Use a operação de reativação primeiro.",
                         resource_id=user_id
                     )
 
@@ -428,7 +428,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao atualizar usuário: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao atualizar o usuário.",
+                message="Erro ao atualizar o usuário.",
                 original_error=e
             )
 
@@ -468,7 +468,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao desativar usuário: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao desativar o usuário.",
+                message="Erro ao desativar o usuário.",
                 original_error=e
             )
 
@@ -508,7 +508,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao reativar usuário: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao reativar o usuário.",
+                message="Erro ao reativar o usuário.",
                 original_error=e
             )
 
@@ -548,6 +548,6 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao excluir usuário permanentemente: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao excluir o usuário permanentemente.",
+                message="Erro ao excluir o usuário permanentemente.",
                 original_error=e
             )
