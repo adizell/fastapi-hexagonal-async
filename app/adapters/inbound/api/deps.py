@@ -139,7 +139,8 @@ def get_current_user(
     """
     try:
         token = credentials.credentials
-        payload = UserAuthManager.verify_access_token(token)
+        # Pass db to verify_access_token
+        payload = UserAuthManager.verify_access_token(token, db=db)
 
         try:
             user_id = UUID(payload.get("sub"))

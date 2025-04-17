@@ -1,6 +1,6 @@
-# app/main.py
-
 import logging
+import asyncio
+from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
@@ -90,9 +90,35 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
+# ── TAREFA DE LIMPEZA DE BLACKLIST ──────────────────────────────────────────────
+def cleanup_token_blacklist():
+    """Limpa tokens expirados da blacklist no banco."""
+    from app.adapters.outbound.persistence.database import get_db_context
+    from app.adapters.outbound.persistence.repositories.token_repository import token_repository
+
+    with get_db_context() as db:
+        deleted = token_repository.cleanup_expired(db)
+        logger.info(f"Cleaned up {deleted} expired tokens from blacklist")
+
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application starting up...")
+
+    # dispara a task de limpeza a cada 24h em segundo plano
+    async def periodic_cleanup():
+        # espera inicial de 24h antes da primeira execução
+        await asyncio.sleep(24 * 60 * 60)
+        while True:
+            try:
+                cleanup_token_blacklist()
+            except Exception as e:
+                logger.exception(f"Erro no cleanup_token_blacklist: {e}")
+            # aguarda mais 24h até a próxima limpeza
+            await asyncio.sleep(24 * 60 * 60)
+
+    # dispara o loop sem bloquear o startup
+    asyncio.create_task(periodic_cleanup())
 
 
 @app.on_event("shutdown")

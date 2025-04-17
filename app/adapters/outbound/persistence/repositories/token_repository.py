@@ -1,42 +1,28 @@
 # app/adapters/outbound/persistence/repositories/token_repository.py
 
-"""
-Repositório para gerenciamento de tokens.
-
-Este módulo implementa operações de banco de dados
-para tokens revogados ou expirados.
-"""
-
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
 from app.adapters.outbound.persistence.models.token_blacklist import TokenBlacklist
 from app.domain.exceptions import DatabaseOperationException
 
 
-class TokenCRUD(CRUDBase[TokenBlacklist, dict, dict]):
-    """
-    Implementação do repositório CRUD para a entidade TokenBlacklist.
+class TokenRepository:
+    """Repository for managing token blacklist."""
 
-    Estende CRUDBase com operações específicas para tokens.
-    """
-
-    def add_to_blacklist(self, db: Session, jti: str, expires_at: datetime) -> TokenBlacklist:
+    @staticmethod
+    def add_to_blacklist(db: Session, jti: str, expires_at: datetime) -> TokenBlacklist:
         """
-        Adiciona um token à blacklist.
+        Add a token to the blacklist.
 
         Args:
-            db: Sessão do banco de dados
-            jti: Identificador único do token (JWT ID)
-            expires_at: Data e hora de expiração do token
+            db: Database session
+            jti: JWT ID to blacklist
+            expires_at: When the token naturally expires
 
         Returns:
-            Token adicionado à blacklist
-
-        Raises:
-            DatabaseOperationException: Se ocorrer erro ao adicionar à blacklist
+            The created TokenBlacklist record
         """
         try:
             token = TokenBlacklist(
@@ -51,45 +37,41 @@ class TokenCRUD(CRUDBase[TokenBlacklist, dict, dict]):
         except SQLAlchemyError as e:
             db.rollback()
             raise DatabaseOperationException(
-                detail="Erro ao adicionar token à blacklist",
+                detail="Error adding token to blacklist",
                 original_error=e
             )
 
-    def is_blacklisted(self, db: Session, jti: str) -> bool:
+    @staticmethod
+    def is_blacklisted(db: Session, jti: str) -> bool:
         """
-        Verifica se um token está na blacklist.
+        Check if a token is in the blacklist.
 
         Args:
-            db: Sessão do banco de dados
-            jti: Identificador único do token (JWT ID)
+            db: Database session
+            jti: JWT ID to check
 
         Returns:
-            True se o token estiver na blacklist, False caso contrário
-
-        Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            True if token is blacklisted, False otherwise
         """
         try:
             token = db.query(TokenBlacklist).filter(TokenBlacklist.jti == jti).first()
             return token is not None
         except SQLAlchemyError as e:
             raise DatabaseOperationException(
-                detail="Erro ao verificar token na blacklist",
+                detail="Error checking token blacklist",
                 original_error=e
             )
 
-    def cleanup_expired(self, db: Session) -> int:
+    @staticmethod
+    def cleanup_expired(db: Session) -> int:
         """
-        Remove tokens expirados da blacklist.
+        Remove expired tokens from blacklist to keep the table size manageable.
 
         Args:
-            db: Sessão do banco de dados
+            db: Database session
 
         Returns:
-            Número de tokens removidos
-
-        Raises:
-            DatabaseOperationException: Se ocorrer erro na remoção
+            Number of records deleted
         """
         try:
             now = datetime.utcnow()
@@ -101,10 +83,10 @@ class TokenCRUD(CRUDBase[TokenBlacklist, dict, dict]):
         except SQLAlchemyError as e:
             db.rollback()
             raise DatabaseOperationException(
-                detail="Erro ao limpar tokens expirados",
+                detail="Error cleaning up expired blacklisted tokens",
                 original_error=e
             )
 
 
-# Instância singleton do CRUD para ser usada pelos serviços
-token = TokenCRUD(TokenBlacklist)
+# Create instance
+token_repository = TokenRepository()
