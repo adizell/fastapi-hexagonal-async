@@ -19,6 +19,7 @@ from app.adapters.outbound.persistence.models.auth_group import AuthGroup
 from app.adapters.outbound.persistence.models.auth_permission import AuthPermission
 from app.adapters.outbound.persistence.models.auth_content_type import AuthContentType
 from app.adapters.outbound.persistence.models.auth_group_permissions import auth_group_permissions
+from app.adapters.outbound.persistence.models.token_blacklist import TokenBlacklist
 
 # Exportar todos os modelos
 __all__ = [
