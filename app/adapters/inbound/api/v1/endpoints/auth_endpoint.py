@@ -30,10 +30,7 @@ bearer_scheme = HTTPBearer()
     response_model=UserOutput,
     status_code=status.HTTP_201_CREATED,
     summary="Register User - Cria um novo usuário",
-    description=(
-            "Cria um novo usuário com endereço de email. É necessário um token JWT "
-            "de client para validar a origem da criação."
-    ),
+    description="Cria um novo usuário com endereço de email. É necessário um token JWT de client.",
 )
 def register_user(
         user_input: UserCreate,
@@ -44,10 +41,12 @@ def register_user(
         return AuthService(db).register_user(user_input)
 
     except ResourceAlreadyExistsException as e:
-        logger.warning(f"Registro duplicado: {e.details}")
+        # agora usamos e.detail ou str(e) para enviar a mensagem correta
+        msg = getattr(e, "detail", None) or str(e)
+        logger.warning(f"Registro duplicado: {msg}")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=e.details
+            detail=msg
         )
 
     except HTTPException:
