@@ -74,3 +74,51 @@ class UserAuthManager:
         Verifica se a senha em texto corresponde ao hash armazenado.
         """
         return cls.crypt_context.verify(plain_password, hashed_password)
+
+    @classmethod
+    def create_refresh_token(cls, subject: str, token_id: str, expires_delta: timedelta = None) -> str:
+        if expires_delta is None:
+            # Usar a configuração em vez de um valor fixo
+            expires_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        """
+        Cria um token JWT para refresh token.
+
+        - `subject`: normalmente o UUID do usuário.
+        - `token_id`: identificador único do token para controle.
+        - `expires_delta`: tempo de expiração customizado.
+        """
+        if expires_delta is None:
+            # Por padrão, refresh tokens duram 30 dias
+            expires_delta = timedelta(days=30)
+
+        expire = datetime.utcnow() + expires_delta
+        payload = {
+            "sub": str(subject),
+            "exp": int(expire.timestamp()),
+            "type": "refresh",
+            "jti": token_id,  # JWT ID - identificador único para este token
+        }
+
+        return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    @classmethod
+    def verify_refresh_token(cls, token: str) -> dict:
+        """
+        Verifica e decodifica um refresh token JWT.
+
+        Retorna o payload se for válido.
+        Lança HTTP 401 se o token for inválido, expirado ou incorreto.
+        """
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            if payload.get("type") != "refresh":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token inválido: não é um refresh token.",
+                )
+            return payload
+        except JWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token inválido ou expirado.",
+            )

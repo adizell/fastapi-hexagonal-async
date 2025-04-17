@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_USER_EXPIRE_MINUTOS: int
     ACCESS_TOKEN_CLIENT_EXPIRE_DIAS: int
+    REFRESH_TOKEN_EXPIRE_DAYS: int
 
     # CORS and CSRF Protection
     BASE_URL: str = "http://localhost:8000"

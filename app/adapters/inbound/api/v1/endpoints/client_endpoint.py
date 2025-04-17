@@ -1,4 +1,4 @@
-# app/adapters/inbound/api/v1/endpoints/client_auth.py
+# app/adapters/inbound/api/v1/endpoints/client_endpoint.py
 
 """
 Endpoints para autenticação e gerenciamento de clients.

@@ -39,10 +39,13 @@ class ResourceNotFoundException(DomainException):
 class ResourceAlreadyExistsException(DomainException):
     """Recurso já existe."""
 
-    def __init__(self, message: str = "Recurso já existe", resource_id: Any = None):
+    def __init__(self, detail: str = "Recurso já existe", resource_id: Any = None, message: str = None):
+        # Para manter compatibilidade com as duas formas de chamar
+        msg = detail if detail else message if message else "Recurso já existe"
         resource_info = f" (ID: {resource_id})" if resource_id is not None else ""
+
         super().__init__(
-            message=f"{message}{resource_info}",
+            message=f"{msg}{resource_info}",
             internal_code="RESOURCE_ALREADY_EXISTS"
         )
 

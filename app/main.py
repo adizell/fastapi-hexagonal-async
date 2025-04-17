@@ -46,11 +46,11 @@ app.add_middleware(ExceptionMiddleware)
 
 # Routers
 from app.adapters.inbound.api.v1.router import api_router as api_v1_router
-from app.adapters.inbound.api.v1.endpoints import client_auth
+from app.adapters.inbound.api.v1.endpoints import client_endpoint
 
-app.include_router(client_auth.jwt_router)
-app.include_router(client_auth.create_url_router)
-app.include_router(client_auth.update_url_router)
+app.include_router(client_endpoint.jwt_router)
+app.include_router(client_endpoint.create_url_router)
+app.include_router(client_endpoint.update_url_router)
 app.include_router(api_v1_router, prefix="/api/v1")
 
 

@@ -171,7 +171,15 @@ class TokenData(CustomBaseModel):
     Utilizado para retornar o token JWT e informações de expiração.
     """
     access_token: str = Field(..., description="Token JWT de acesso.")
+    refresh_token: str = Field(..., description="Token de atualização para obter novos tokens de acesso.")
     expires_at: datetime = Field(..., description="Data e hora de expiração do token.")
 
     class Config:
         from_attributes = True
+
+
+class RefreshTokenRequest(CustomBaseModel):
+    """
+    Schema para solicitação de refresh token.
+    """
+    refresh_token: str = Field(..., description="Token de atualização para obter um novo token de acesso.")
