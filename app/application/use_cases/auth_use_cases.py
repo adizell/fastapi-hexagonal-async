@@ -11,12 +11,16 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from typing import Dict, Optional
 
 from app.adapters.configuration.config import settings
 from app.adapters.outbound.persistence.repositories.user_repository import user as user_repository
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
-from app.application.dtos.user_dto import UserCreate, TokenData
-from app.domain.exceptions import InvalidCredentialsException, DatabaseOperationException
+from app.application.dtos.user_dto import UserCreate, TokenData, UserOutput
+from app.application.ports.inbound import IUserUseCase
+from app.domain.exceptions import InvalidCredentialsException, DatabaseOperationException, \
+    ResourceAlreadyExistsException
+from app.domain.services.auth_service import AuthService as DomainAuthService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +42,7 @@ class AuthService:
         """
         self.db = db_session
 
-    def register_user(self, user_input: UserCreate):
+    def register_user(self, user_input: UserCreate) -> UserOutput:
         """
         Registra um novo usuário no sistema.
 
@@ -47,8 +51,15 @@ class AuthService:
 
         Returns:
             Usuário registrado
+
+        Raises:
+            ResourceAlreadyExistsException: Se o email já estiver em uso
         """
-        return user_repository.create_with_password(self.db, obj_in=user_input)
+        # Call the repository to create the user
+        user = user_repository.create_with_password(self.db, obj_in=user_input)
+
+        # Convert to DTO for response
+        return UserOutput.from_orm(user)
 
     def login_user(self, user_input: UserCreate) -> TokenData:
         """
@@ -59,6 +70,9 @@ class AuthService:
 
         Returns:
             Dados do token de acesso e refresh
+
+        Raises:
+            InvalidCredentialsException: Se as credenciais forem inválidas
         """
         # Autenticar usuário
         user = user_repository.authenticate(
@@ -67,10 +81,12 @@ class AuthService:
             password=user_input.password
         )
 
-        # Gerar tokens
+        # Generate token payload using domain service
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_USER_EXPIRE_MINUTOS)
         refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        token_id = str(uuid.uuid4())
 
+        # Gerar tokens
         access_token = UserAuthManager.create_access_token(
             subject=str(user.id),
             expires_delta=access_token_expires
@@ -79,16 +95,14 @@ class AuthService:
         # Gerar refresh token com um identificador único
         refresh_token = UserAuthManager.create_refresh_token(
             subject=str(user.id),
-            token_id=str(uuid.uuid4()),
+            token_id=token_id,
             expires_delta=refresh_token_expires
         )
 
         # Calcular a data de expiração para enviar ao cliente
         expires_at = datetime.utcnow() + access_token_expires
 
-        # Armazenar o refresh token no banco (opcional)
-        # self._store_refresh_token(user.id, refresh_token, expires_at + refresh_token_expires)
-
+        # Return token data
         return TokenData(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -106,10 +120,10 @@ class AuthService:
             Novos tokens de acesso e atualização
 
         Raises:
-            InvalidCredentialsException: Se o refresh token for inválido ou expirado
+            InvalidCredentialsException: Se o refresh token for inválido
         """
         try:
-            # Verificar o refresh token
+            # Verify the refresh token
             payload = UserAuthManager.verify_refresh_token(refresh_token)
             user_id = payload.get("sub")
             token_id = payload.get("jti")
@@ -117,37 +131,31 @@ class AuthService:
             if not user_id or not token_id:
                 raise InvalidCredentialsException(detail="Token de atualização inválido")
 
-            # Verificar se o usuário existe e está ativo
+            # Verify user exists and is active
             user = user_repository.get(self.db, id=user_id)
             if not user or not user.is_active:
                 raise InvalidCredentialsException(detail="Usuário não encontrado ou inativo")
 
-            # Verificar se o token não foi revogado (implementação opcional)
-            # self._check_token_not_revoked(token_id)
-
-            # Gerar novos tokens
+            # Generate new tokens
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_USER_EXPIRE_MINUTOS)
             refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            new_token_id = str(uuid.uuid4())
 
             new_access_token = UserAuthManager.create_access_token(
                 subject=str(user.id),
                 expires_delta=access_token_expires
             )
 
-            # Gerar novo refresh token
             new_refresh_token = UserAuthManager.create_refresh_token(
                 subject=str(user.id),
-                token_id=str(uuid.uuid4()),
+                token_id=new_token_id,
                 expires_delta=refresh_token_expires
             )
 
-            # Calcular a data de expiração para enviar ao cliente
+            # Calculate expiration time for response
             expires_at = datetime.utcnow() + access_token_expires
 
-            # Opcional: Revogar o token antigo e armazenar o novo
-            # self._revoke_refresh_token(token_id)
-            # self._store_refresh_token(user.id, new_refresh_token, expires_at + refresh_token_expires)
-
+            # Return new token data
             return TokenData(
                 access_token=new_access_token,
                 refresh_token=new_refresh_token,
@@ -155,7 +163,7 @@ class AuthService:
             )
 
         except InvalidCredentialsException:
-            # Repassar exceção já formatada
+            # Pass through the exception
             raise
 
         except Exception as e:
