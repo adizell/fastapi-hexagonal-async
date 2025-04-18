@@ -43,39 +43,41 @@ class UserCRUD(CRUDBase[User, UserCreate, UserUpdate]):
             )
 
     def create_with_password(self, db: Session, *, obj_in: UserCreate) -> User:
-        # Importa gerenciador de senha aqui para evitar ciclo de importação
+        # Import local evita import circular
         from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 
-        # Cria novo usuário, fazendo hash da senha
         try:
-            # Verifica duplicidade de email
+            # 1. Verifica se já existe um usuário com esse e‑mail
             if self.get_by_email(db, email=obj_in.email):
                 self.logger.warning(f"Tentativa de criar usuário com email já existente: {obj_in.email}")
                 raise ResourceAlreadyExistsException(
                     detail=f"Usuário com email '{obj_in.email}' já existe"
                 )
 
-            # Converte Pydantic em dict e extrai senha
-            obj_in_data = jsonable_encoder(obj_in)
+            # 2. Converte o Pydantic model em dict e extrai a senha
+            obj_data = jsonable_encoder(obj_in)
+            raw_password = obj_data.pop("password")
 
-            # Remover a senha do dict para não ser inserida em texto plano
-            password = obj_in_data.pop("password")
+            # 3. Cria a instância do modelo User
+            db_obj = User(**obj_data)
 
-            # Cria instância do modelo e atribui hash da senha
-            db_obj = User(**obj_in_data)
-            db_obj.password = UserAuthManager.hash_password(password)
+            # 4. Gera o hash da senha e atribui ao objeto
+            db_obj.password = UserAuthManager.hash_password(raw_password)
 
-            # Persiste no banco
+            # 5. Persiste no banco
             db.add(db_obj)
             db.commit()
             db.refresh(db_obj)
+
             self.logger.info(f"Usuário criado com email: {db_obj.email}")
             return db_obj
 
         except ResourceAlreadyExistsException:
-            # Repassa exceção de duplicidade
+            # repropaga nosso erro de duplicidade para ser tratado na camada de rota
             raise
+
         except SQLAlchemyError as e:
+            # faz rollback em caso de falha no SQL e encapsula numa exceção de domínio
             db.rollback()
             self.logger.error(f"Erro ao criar usuário: {e}")
             raise DatabaseOperationException(
@@ -220,8 +222,6 @@ class UserCRUD(CRUDBase[User, UserCreate, UserUpdate]):
 
 # Instância singleton para uso pelos serviços
 user = UserCRUD(User)
-
-
 
 # # app/adapters/outbound/persistence/repositories/user_repository.py
 #

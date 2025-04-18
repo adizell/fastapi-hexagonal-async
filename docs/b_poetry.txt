@@ -2,16 +2,7 @@
 venv/Scripts/activate
 
 # Instalar poetry ambiente virtual ativado
-poetry install
-
-# Instalar poetry ambiente virtual ativado no windows
-# curl -sSL https://install.python-poetry.org | python -
-
-# Adicionar o Poetry ao PATH Após a instalação, você precisa adicionar o Poetry ao seu PATH.
-export PATH="$HOME/.local/bin:$PATH"
-
-# Em seguida, recarregue o terminal:
-source ~/.bashrc
+py -m pip install poetry
 
 # Atualizando dependencias
 poetry update
@@ -19,9 +10,24 @@ poetry update
 # Atualizando dependencias
 poetry self update
 
-
 poetry --version
 poetry env info -p
 
 # Após criar pastas e arquivo main.py testar aplicação
 uvicorn app.main:app
+
+
+
+
+#################################
+###### COMANDOS NÃO USADOS ######
+#################################
+
+# Atualizar pip no Python certo
+py -m ensurepip --upgrade
+
+# Atualizar pip
+py -m pip install --upgrade pip
+
+# Instalar Poetry pelo pip | py -m pip install poetry
+Testar | poetry --version
