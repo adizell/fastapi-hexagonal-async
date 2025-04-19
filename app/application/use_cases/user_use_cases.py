@@ -26,6 +26,7 @@ from app.domain.exceptions import (
     PermissionDeniedException,
     ResourceInactiveException
 )
+from app.domain.services.user_service import UserPermissionService
 
 # Configurar logger
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class UserService:
         if not user:
             logger.warning(f"Usuário não encontrado: ID {user_id}")
             raise ResourceNotFoundException(
-                message="Usuário não encontrado",
+                detail="Usuário não encontrado",
                 resource_id=user_id
             )
 
@@ -74,7 +75,7 @@ class UserService:
         if not user.is_active:
             logger.warning(f"Tentativa de acessar usuário inativo: ID {user_id}")
             raise ResourceInactiveException(
-                message="Este usuário está inativo e não está disponível",
+                detail="Este usuário está inativo e não está disponível",
                 resource_id=user_id
             )
 
@@ -98,14 +99,14 @@ class UserService:
         if not user:
             logger.warning(f"Usuário não encontrado: email {email}")
             raise ResourceNotFoundException(
-                message="Usuário não encontrado com este email"
+                detail="Usuário não encontrado com este email"
             )
 
-        # Adicionar verificação de status ativo
+        # Verificação de status ativo
         if not user.is_active:
             logger.warning(f"Tentativa de acessar usuário inativo: email {email}")
             raise ResourceInactiveException(
-                message="Este usuário está inativo e não está disponível"
+                detail="Este usuário está inativo e não está disponível"
             )
 
         return user
@@ -127,129 +128,8 @@ class UserService:
         if not group:
             error_msg = f"Grupo '{name}' não encontrado. Verifique a carga inicial (seed)."
             logger.error(error_msg)
-            raise DatabaseOperationException(message=error_msg)
+            raise DatabaseOperationException(detail=error_msg)
         return group
-
-    def register_user(self, user_input: UserCreate) -> User:
-        """
-        Cria um novo usuário e associa ao grupo 'user'.
-
-        Args:
-            user_input: Dados do usuário
-
-        Returns:
-            Usuário criado
-
-        Raises:
-            ResourceAlreadyExistsException: Se o email já estiver em uso
-            DatabaseOperationException: Se houver erro ao salvar no banco
-        """
-        try:
-            # Verificar se o email já existe
-            existing_user = self.db.query(User).filter_by(email=user_input.email).first()
-            if existing_user:
-                logger.warning(f"Email já em uso no registro: {user_input.email}")
-                raise ResourceAlreadyExistsException(
-                    message="Este email já está em uso"
-                )
-
-            # Criar o usuário (a validação já ocorre no Pydantic schema)
-            new_user = User(
-                email=user_input.email,
-                password=UserAuthManager.hash_password(user_input.password),
-                is_superuser=False,  # Segurança garantida
-            )
-
-            # Obter o grupo de usuário padrão
-            user_group = self._get_group_by_name("user")
-            new_user.groups.append(user_group)
-
-            # Salvar no banco
-            self.db.add(new_user)
-            self.db.commit()
-            self.db.refresh(new_user)
-
-            logger.info(f"Usuário registrado com sucesso: {new_user.email}")
-            return new_user
-
-        except (ResourceAlreadyExistsException, DatabaseOperationException):
-            # Repassa exceções já formatadas
-            self.db.rollback()
-            raise
-
-        except Exception as e:
-            self.db.rollback()
-            logger.exception(f"Erro ao registrar usuário: {str(e)}")
-            raise DatabaseOperationException(
-                message="Erro ao registrar o usuário. Tente novamente.",
-                original_error=e
-            )
-
-    def login_user(self, user_input: UserCreate) -> TokenData:
-        """
-        Autentica o usuário com email e senha.
-
-        Args:
-            user_input: Credenciais do usuário
-
-        Returns:
-            Token de acesso e informações de expiração
-
-        Raises:
-            InvalidCredentialsException: Se as credenciais forem inválidas
-            ResourceInactiveException: Se o usuário estiver inativo
-            DatabaseOperationException: Se houver erro no processo
-        """
-        try:
-            user: User = self.db.query(User).filter(User.email == user_input.email).first()
-
-            if not user:
-                logger.warning(f"Tentativa de login com usuário inexistente: {user_input.email}")
-                raise InvalidCredentialsException(
-                    message="Email ou senha inválidos"
-                )
-
-            if not user.is_active:
-                logger.warning(f"Tentativa de login com usuário inativo: {user_input.email}")
-                raise ResourceInactiveException(
-                    message="Conta de usuário inativa",
-                    resource_id=user.id
-                )
-
-            if not UserAuthManager.verify_password(user_input.password, user.password):
-                logger.warning(f"Tentativa de login com senha incorreta: {user_input.email}")
-                raise InvalidCredentialsException(
-                    message="Email ou senha inválidos"
-                )
-
-            # Incluir expires_delta para calcular expires_at
-            expires_delta = timedelta(minutes=120)  # 2 horas de validade
-            expires_at = datetime.utcnow() + expires_delta
-
-            # Criar o token com o tempo de expiração
-            token = UserAuthManager.create_access_token(
-                subject=str(user.id),
-                expires_delta=expires_delta
-            )
-
-            logger.info(f"Login bem-sucedido: {user.email}")
-
-            # Retornar TokenData com o expires_at
-            return TokenData(
-                access_token=token,
-                expires_at=expires_at
-            )
-
-        except (InvalidCredentialsException, ResourceInactiveException):
-            # Repassa exceção já formatada
-            raise
-
-        except Exception as e:
-            logger.exception(f"Erro ao fazer login: {str(e)}")
-            raise DatabaseOperationException(
-                message="Erro durante o processo de login. Tente novamente.",
-                original_error=e
-            )
 
     def list_users(self, current_user: User, params: Params, order: str = "desc"):
         """
@@ -268,10 +148,11 @@ class UserService:
             DatabaseOperationException: Se houver erro no processo
         """
         try:
+            # Verificar permissão usando domínio service
             if not current_user.is_superuser:
                 logger.warning(f"Usuário sem permissão tentou listar todos os usuários: {current_user.email}")
                 raise PermissionDeniedException(
-                    message="Apenas superusuários podem listar todos os usuários."
+                    detail="Apenas superusuários podem listar todos os usuários."
                 )
 
             query = self.db.query(User)
@@ -287,7 +168,7 @@ class UserService:
         except Exception as e:
             logger.exception(f"Erro ao listar usuários: {str(e)}")
             raise DatabaseOperationException(
-                message="Erro ao listar usuários",
+                detail="Erro ao listar usuários",
                 original_error=e
             )
 
@@ -317,7 +198,7 @@ class UserService:
             if data.password and not data.current_password:
                 logger.warning(f"Tentativa de alterar senha sem fornecer senha atual: {user.email}")
                 raise InvalidCredentialsException(
-                    message="Para alterar a senha, é necessário fornecer a senha atual."
+                    detail="Para alterar a senha, é necessário fornecer a senha atual."
                 )
 
             # Verificar senha atual se for fornecida
@@ -325,7 +206,7 @@ class UserService:
                 if not UserAuthManager.verify_password(data.current_password, user.password):
                     logger.warning(f"Senha atual incorreta ao atualizar usuário: {user.email}")
                     raise InvalidCredentialsException(
-                        message="Senha atual incorreta."
+                        detail="Senha atual incorreta."
                     )
 
             # Atualizar campos
@@ -339,13 +220,20 @@ class UserService:
                 if existing:
                     logger.warning(f"Email já em uso ao atualizar usuário: {data.email}")
                     raise ResourceAlreadyExistsException(
-                        message="Este email já está em uso."
+                        detail="Este email já está em uso."
                     )
 
                 user.email = data.email
 
             if data.password is not None:
-                user.password = UserAuthManager.hash_password(data.password)
+                # Verificar força da senha usando domain service antes de definir
+                from app.domain.services.auth_service import PasswordService
+                if PasswordService.verify_password_strength(data.password):
+                    user.password = UserAuthManager.hash_password(data.password)
+                else:
+                    raise InvalidCredentialsException(
+                        detail="A senha não atende aos requisitos mínimos de segurança."
+                    )
 
             self.db.commit()
             self.db.refresh(user)
@@ -362,7 +250,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao atualizar usuário: {str(e)}")
             raise DatabaseOperationException(
-                message="Erro ao atualizar o usuário.",
+                detail="Erro ao atualizar o usuário.",
                 original_error=e
             )
 
@@ -389,23 +277,43 @@ class UserService:
             if not user:
                 logger.warning(f"Tentativa de atualizar usuário inexistente: {user_id}")
                 raise ResourceNotFoundException(
-                    message="Usuário não encontrado",
+                    detail="Usuário não encontrado",
                     resource_id=user_id
                 )
 
-                # Verificar status ativo, EXCETO se a atualização está reativando o usuário
-                is_reactivating = data.is_active is True and not user.is_active
-                if not user.is_active and not is_reactivating:
-                    logger.warning(f"Tentativa de atualizar usuário inativo: {user_id}")
-                    raise ResourceInactiveException(
-                        message="Este usuário está inativo. Use a operação de reativação primeiro.",
-                        resource_id=user_id
+            # Verificar status ativo, EXCETO se a atualização está reativando o usuário
+            is_reactivating = data.is_active is True and not user.is_active
+            if not user.is_active and not is_reactivating:
+                logger.warning(f"Tentativa de atualizar usuário inativo: {user_id}")
+                raise ResourceInactiveException(
+                    detail="Este usuário está inativo. Use a operação de reativação primeiro.",
+                    resource_id=user_id
+                )
+
+            # Verificar se novo email já existe
+            if data.email and data.email != user.email:
+                existing = self.db.query(User).filter(
+                    User.email == data.email,
+                    User.id != user_id
+                ).first()
+
+                if existing:
+                    logger.warning(f"Email já em uso ao atualizar usuário: {data.email}")
+                    raise ResourceAlreadyExistsException(
+                        detail="Este email já está em uso."
                     )
 
                 user.email = data.email
 
             if data.password is not None:
-                user.password = UserAuthManager.hash_password(data.password)
+                # Verificar força da senha usando domain service antes de definir
+                from app.domain.services.auth_service import PasswordService
+                if PasswordService.verify_password_strength(data.password):
+                    user.password = UserAuthManager.hash_password(data.password)
+                else:
+                    raise InvalidCredentialsException(
+                        detail="A senha não atende aos requisitos mínimos de segurança."
+                    )
 
             if data.is_active is not None:
                 user.is_active = data.is_active
@@ -419,7 +327,7 @@ class UserService:
             logger.info(f"Administrador atualizou dados do usuário: {user.id}")
             return user
 
-        except (ResourceNotFoundException, ResourceAlreadyExistsException):
+        except (ResourceNotFoundException, ResourceAlreadyExistsException, ResourceInactiveException):
             # Repassa exceções já formatadas
             self.db.rollback()
             raise
@@ -428,7 +336,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao atualizar usuário: {str(e)}")
             raise DatabaseOperationException(
-                message="Erro ao atualizar o usuário.",
+                detail="Erro ao atualizar o usuário.",
                 original_error=e
             )
 
@@ -444,7 +352,6 @@ class UserService:
 
         Raises:
             ResourceNotFoundException: Se o usuário não for encontrado
-            InvalidInputException: Se o usuário já estiver inativo
             DatabaseOperationException: Se houver erro no processo
         """
         try:
@@ -468,7 +375,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao desativar usuário: {str(e)}")
             raise DatabaseOperationException(
-                message="Erro ao desativar o usuário.",
+                detail="Erro ao desativar o usuário.",
                 original_error=e
             )
 
@@ -484,11 +391,18 @@ class UserService:
 
         Raises:
             ResourceNotFoundException: Se o usuário não for encontrado
-            InvalidInputException: Se o usuário já estiver ativo
             DatabaseOperationException: Se houver erro no processo
         """
         try:
-            user = self._get_user_by_id(user_id)
+            # Aqui precisamos diretamente buscar o usuário pelo ID sem verificar o status ativo
+            user = self.db.query(User).filter(User.id == user_id).first()
+
+            if not user:
+                logger.warning(f"Tentativa de reativar usuário inexistente: {user_id}")
+                raise ResourceNotFoundException(
+                    detail="Usuário não encontrado",
+                    resource_id=user_id
+                )
 
             if user.is_active:
                 return {"message": f"Usuário '{user.email}' já está ativo."}
@@ -508,7 +422,7 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao reativar usuário: {str(e)}")
             raise DatabaseOperationException(
-                message="Erro ao reativar o usuário.",
+                detail="Erro ao reativar o usuário.",
                 original_error=e
             )
 
@@ -527,6 +441,7 @@ class UserService:
             DatabaseOperationException: Se houver erro no processo.
         """
         try:
+            # Aqui podemos utilizar o método já existente que verifica se o usuário existe
             user = self._get_user_by_id(user_id)
 
             # Remover usuário de todos os grupos e permissões
@@ -548,6 +463,6 @@ class UserService:
             self.db.rollback()
             logger.exception(f"Erro ao excluir usuário permanentemente: {str(e)}")
             raise DatabaseOperationException(
-                message="Erro ao excluir o usuário permanentemente.",
+                detail="Erro ao excluir o usuário permanentemente.",
                 original_error=e
             )

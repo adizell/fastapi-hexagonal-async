@@ -30,7 +30,53 @@ bearer_scheme = HTTPBearer()
     response_model=UserOutput,
     status_code=status.HTTP_201_CREATED,
     summary="Register User - Cria um novo usuário",
-    description="Cria um novo usuário com endereço de email. É necessário um token JWT de client.",
+    description="""
+    Cria um novo usuário com endereço de email. É necessário um token JWT de client.
+
+    A senha deve seguir os seguintes critérios:
+    - Mínimo de 8 caracteres
+    - Pelo menos uma letra maiúscula
+    - Pelo menos uma letra minúscula
+    - Pelo menos um número
+    - Pelo menos um caractere especial (como !@#$%^&*)
+    """,
+    responses={
+        201: {
+            "description": "Usuário criado com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "created_at": "2023-01-01T00:00:00.000Z",
+                        "updated_at": None
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Não autenticado ou token de client inválido",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Token do client inválido ou expirado."
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "Email já está em uso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Usuário com email 'user@example.com' já existe"
+                    }
+                }
+            }
+        }
+    }
 )
 def register_user(
         user_input: UserCreate,

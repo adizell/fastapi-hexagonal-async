@@ -36,6 +36,33 @@ router = APIRouter()
     response_model=UserOutput,
     summary="Get My Data - Dados do usuário logado",
     description="Retorna os dados do usuário autenticado via token JWT.",
+    responses={
+        200: {
+            "description": "Dados do usuário autenticado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "created_at": "2023-01-01T00:00:00.000Z",
+                        "updated_at": "2023-01-02T00:00:00.000Z"
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Não autenticado ou token inválido",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Token inválido ou expirado."
+                    }
+                }
+            }
+        }
+    }
 )
 def get_my_data(
         db: Session = Depends(get_session),

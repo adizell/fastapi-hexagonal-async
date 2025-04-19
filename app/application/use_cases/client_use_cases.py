@@ -10,13 +10,14 @@ incluindo autenticação e gerenciamento de credenciais.
 import secrets
 import logging
 from typing import Dict
-from datetime import timedelta
+from datetime import timedelta, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from passlib.context import CryptContext
 
 from app.adapters.outbound.persistence.models import Client
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
+from app.adapters.outbound.security.token_store import TokenStore
+from app.application.ports.inbound import IClientUseCase
 from app.domain.exceptions import (
     ResourceNotFoundException,
     InvalidCredentialsException,
@@ -24,14 +25,10 @@ from app.domain.exceptions import (
     ResourceInactiveException
 )
 
-# Configurar logger
 logger = logging.getLogger(__name__)
 
-# Configuração para hashing usando bcrypt
-crypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-class ClientService:
+class ClientService(IClientUseCase):
     """
     Serviço para gerenciamento de clientes.
 
@@ -40,35 +37,27 @@ class ClientService:
     """
 
     def __init__(self, db_session: Session):
-        """
-        Inicializa o serviço com uma sessão de banco de dados.
-
-        Args:
-            db_session: Sessão SQLAlchemy ativa
-        """
         self.db_session = db_session
 
+    def authenticate_client(self, admin_password: str) -> None:
+        """
+        Valida a senha administrativa para permitir operações de
+        criação/atualização de clientes.
+        """
+        if not TokenStore.validate(admin_password, ClientAuthManager.crypt_context):
+            logger.warning("Tentativa com senha administrativa inválida")
+            raise InvalidCredentialsException(detail="Senha administrativa inválida")
+
     def client_login(self, client_id: str, client_secret: str, expires_in: int = None) -> str:
-        """
-        Autentica um cliente e gera um token JWT.
-
-        Args:
-            client_id: Identificador do cliente
-            client_secret: Senha do cliente
-            expires_in: Tempo de expiração em dias (opcional)
-
-        Returns:
-            Token JWT
-
-        Raises:
-            InvalidCredentialsException: Se as credenciais forem inválidas
-            ResourceInactiveException: Se o cliente estiver inativo
-            DatabaseOperationException: Se houver erro no processo
-        """
         try:
-            client_db = self.db_session.query(Client).filter_by(client_id=client_id).first()
+            client_db = (
+                self.db_session
+                .query(Client)
+                .filter_by(client_id=client_id)
+                .first()
+            )
 
-            if client_db is None:
+            if not client_db:
                 logger.warning(f"Client ID não encontrado no login: {client_id}")
                 raise InvalidCredentialsException(detail="Credenciais de cliente inválidas")
 
@@ -76,7 +65,6 @@ class ClientService:
                 logger.warning(f"Senha incorreta no login de cliente: {client_id}")
                 raise InvalidCredentialsException(detail="Credenciais de cliente inválidas")
 
-            # Verificar se o cliente está ativo - esta verificação deve existir, mas vamos garantir
             if not client_db.is_active:
                 logger.warning(f"Tentativa de login com cliente inativo: {client_id}")
                 raise ResourceInactiveException(
@@ -90,103 +78,76 @@ class ClientService:
                 expires_delta=expires_delta
             )
 
-            logger.info(f"Login de cliente bem-sucedido: {client_id}")
+            logger.info(f"Login de cliente bem‑sucedido: {client_id}")
             return token
 
         except (InvalidCredentialsException, ResourceInactiveException):
-            # Repassa exceções já formatadas
             raise
 
         except Exception as e:
-            logger.exception(f"Erro no login de cliente: {str(e)}")
+            logger.exception(f"Erro no login de cliente: {e}")
             raise DatabaseOperationException(
                 detail="Erro durante o processo de login do cliente",
                 original_error=e
             )
 
-    def create_client(self) -> Dict[str, str]:
+    def create_client(self, admin_password: str) -> Dict[str, str]:
         """
-        Cria um novo cliente.
-
-        Gera um client_id e um client_secret (em texto plano),
-        armazena o hash do client_secret no banco e retorna as credenciais.
-
-        Returns:
-            dict: { "client_id": <client_id>, "client_secret": <client_secret_plain> }
-
-        Raises:
-            DatabaseOperationException: Se ocorrer erro ao salvar o novo client.
+        Cria um novo cliente. Recebe a senha administrativa,
+        valida, gera e persiste client_id e client_secret (hash).
+        Retorna as credenciais em texto claro.
         """
         try:
-            # Gerar identificadores únicos
-            client_id = secrets.token_urlsafe(16)
-            plain_client_secret = secrets.token_urlsafe(32)
-            hashed_secret = crypt_context.hash(plain_client_secret)
+            # primeiro valida a senha administrativa
+            self.authenticate_client(admin_password)
 
-            # Criar nova instância do client
+            client_id = secrets.token_urlsafe(16)
+            plain_secret = secrets.token_urlsafe(32)
+            hashed = ClientAuthManager.hash_password(plain_secret)
+
             new_client = Client(
                 client_id=client_id,
-                client_secret=hashed_secret,
-                is_active=True
+                client_secret=hashed,
+                is_active=True,
+                created_at=datetime.utcnow()
             )
 
-            # Persistir no banco de dados
             self.db_session.add(new_client)
             self.db_session.commit()
             self.db_session.refresh(new_client)
 
             logger.info(f"Novo cliente criado com ID: {client_id}")
-
-            return {
-                "client_id": client_id,
-                "client_secret": plain_client_secret
-            }
+            return {"client_id": client_id, "client_secret": plain_secret}
 
         except SQLAlchemyError as e:
             self.db_session.rollback()
-            logger.error(f"Erro de banco de dados ao criar cliente: {e}")
+            logger.error(f"Erro de banco ao criar cliente: {e}")
             raise DatabaseOperationException(
                 detail="Erro ao criar cliente",
                 original_error=e
             )
 
-        except Exception as e:
-            self.db_session.rollback()
-            logger.error(f"Erro inesperado ao criar cliente: {e}")
-            raise DatabaseOperationException(
-                detail="Erro interno ao criar cliente",
-                original_error=e
-            )
-
-    def update_client_secret(self, client_id: str) -> Dict[str, str]:
+    def update_client_secret(self, client_id: str, admin_password: str) -> Dict[str, str]:
         """
-        Atualiza a chave secreta de um cliente.
-
-        Busca o cliente pelo client_id, gera uma nova chave secreta,
-        armazena o hash no banco e retorna a nova chave em texto plano.
-
-        Args:
-            client_id: O client_id do cliente (valor público).
-
-        Returns:
-            dict: { "client_id": <client_id>, "new_client_secret": <new_secret_plain> }
-
-        Raises:
-            ResourceNotFoundException: Se o cliente não for encontrado
-            ResourceInactiveException: Se o cliente estiver inativo
-            DatabaseOperationException: Se ocorrer erro na atualização.
+        Atualiza a chave secreta de um cliente existente.
+        Exige senha administrativa.
         """
         try:
-            # Busca o cliente pelo ID
-            client_db = self.db_session.query(Client).filter_by(client_id=client_id).first()
-            if client_db is None:
+            self.authenticate_client(admin_password)
+
+            client_db = (
+                self.db_session
+                .query(Client)
+                .filter_by(client_id=client_id)
+                .first()
+            )
+            if not client_db:
                 logger.warning(f"Tentativa de atualizar cliente inexistente: {client_id}")
                 raise ResourceNotFoundException(
                     detail="Cliente não encontrado",
                     resource_id=client_id
                 )
 
-            # Verificar se o cliente está ativo
             if not client_db.is_active:
                 logger.warning(f"Tentativa de atualizar cliente inativo: {client_id}")
                 raise ResourceInactiveException(
@@ -194,69 +155,44 @@ class ClientService:
                     resource_id=client_db.id
                 )
 
-            # Gerar e atualizar a chave secreta
-            new_secret_plain = secrets.token_urlsafe(32)
-            new_secret_hashed = crypt_context.hash(new_secret_plain)
-            client_db.client_secret = new_secret_hashed
+            new_plain = secrets.token_urlsafe(32)
+            client_db.client_secret = ClientAuthManager.hash_password(new_plain)
 
             self.db_session.commit()
-            logger.info(f"Chave secreta atualizada para cliente: {client_id}")
+            self.db_session.refresh(client_db)
 
-            return {
-                "client_id": client_db.client_id,
-                "new_client_secret": new_secret_plain
-            }
+            logger.info(f"Chave secreta atualizada para cliente: {client_id}")
+            return {"client_id": client_id, "new_client_secret": new_plain}
 
         except (ResourceNotFoundException, ResourceInactiveException):
-            # Repassar exceções já tratadas
             self.db_session.rollback()
             raise
 
         except SQLAlchemyError as e:
             self.db_session.rollback()
-            logger.error(f"Erro de banco de dados ao atualizar cliente: {e}")
+            logger.error(f"Erro de banco ao atualizar cliente: {e}")
             raise DatabaseOperationException(
                 detail="Erro ao atualizar cliente",
                 original_error=e
             )
 
-        except Exception as e:
-            self.db_session.rollback()
-            logger.error(f"Erro inesperado ao atualizar cliente: {e}")
-            raise DatabaseOperationException(
-                detail="Erro interno ao atualizar cliente",
-                original_error=e
-            )
-
     def get_client_by_id(self, client_id: str) -> Client:
-        """
-        Busca um cliente pelo ID e verifica se está ativo.
-
-        Args:
-            client_id: ID do cliente
-
-        Returns:
-            Cliente encontrado
-
-        Raises:
-            ResourceNotFoundException: Se o cliente não for encontrado
-            ResourceInactiveException: Se o cliente estiver inativo
-        """
-        client = self.db_session.query(Client).filter_by(client_id=client_id).first()
-
+        client = (
+            self.db_session
+            .query(Client)
+            .filter_by(client_id=client_id)
+            .first()
+        )
         if not client:
             logger.warning(f"Cliente não encontrado: ID {client_id}")
             raise ResourceNotFoundException(
                 detail=f"Cliente com ID {client_id} não encontrado",
                 resource_id=client_id
             )
-
-        # Verificar se o cliente está ativo
         if not client.is_active:
             logger.warning(f"Tentativa de acessar cliente inativo: ID {client_id}")
             raise ResourceInactiveException(
                 detail="Este cliente está inativo e não está disponível",
                 resource_id=client_id
             )
-
         return client

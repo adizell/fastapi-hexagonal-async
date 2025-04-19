@@ -1,21 +1,22 @@
 # app/adapters/outbound/persistence/repositories/client_repository.py
 
 """
-Repositório CRUD para clientes.
+Repositório para operações com clientes.
 
-Este módulo implementa operações específicas de banco de dados
-para a entidade Client, estendendo a funcionalidade básica do CRUDBase.
-Um client representa uma aplicação/sistema que pode acessar a API.
+Este módulo implementa o repositório que realiza operações de banco de dados
+relacionadas a clientes, implementando a interface IClientRepository.
 """
 
 import secrets
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
 from app.adapters.outbound.persistence.models import Client
 from app.application.dtos.client_dto import Client as ClientSchema
+from app.application.ports.outbound import IClientRepository
+from app.domain.models.client_domain_model import Client as DomainClient
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 from app.domain.exceptions import (
     ResourceNotFoundException,
@@ -24,7 +25,7 @@ from app.domain.exceptions import (
 )
 
 
-class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
+class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema], IClientRepository):
     """
     Implementação do repositório CRUD para a entidade Client.
 
@@ -44,7 +45,7 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
             Client encontrado ou None se não existir
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            DatabaseOperationException: Em caso de erro de banco de dados
         """
         try:
             return db.query(Client).filter(Client.client_id == client_id).first()
@@ -55,7 +56,7 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
                 original_error=e
             )
 
-    def create_client(self, db: Session) -> Dict[str, str]:
+    def create_with_credentials(self, db: Session) -> Dict[str, str]:
         """
         Cria um novo client com credenciais geradas automaticamente.
 
@@ -66,7 +67,7 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
             Dicionário com client_id e client_secret
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na criação
+            DatabaseOperationException: Em caso de erro de banco de dados
         """
         try:
             # Gerar credenciais
@@ -102,7 +103,7 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
                 original_error=e
             )
 
-    def update_client_secret(self, db: Session, client_id: str) -> Dict[str, str]:
+    def update_secret(self, db: Session, client_id: str) -> Dict[str, str]:
         """
         Atualiza a chave secreta de um client existente.
 
@@ -115,7 +116,7 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
 
         Raises:
             ResourceNotFoundException: Se o client não existir
-            DatabaseOperationException: Se ocorrer erro na atualização
+            DatabaseOperationException: Em caso de erro de banco de dados
         """
         try:
             # Buscar o client
@@ -172,7 +173,7 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
 
         Raises:
             InvalidCredentialsException: Se as credenciais forem inválidas
-            DatabaseOperationException: Se ocorrer erro na autenticação
+            DatabaseOperationException: Em caso de erro de banco de dados
         """
         try:
             # Buscar o client
@@ -204,85 +205,62 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema]):
                 original_error=e
             )
 
-    def toggle_status(self, db: Session, client_id: str, active: bool) -> Client:
+    def to_domain(self, db_model: Client) -> DomainClient:
         """
-        Ativa ou desativa um client.
+        Converte modelo de banco de dados para modelo de domínio.
 
         Args:
-            db: Sessão do banco de dados
-            client_id: Identificador do client
-            active: Novo status (True=ativo, False=inativo)
+            db_model: Modelo ORM do cliente
 
         Returns:
-            Client atualizado
-
-        Raises:
-            ResourceNotFoundException: Se o client não existir
-            DatabaseOperationException: Se ocorrer erro na atualização
+            Modelo de domínio do cliente
         """
-        try:
-            # Buscar o client
-            client = self.get_by_client_id(db, client_id)
-            if not client:
-                raise ResourceNotFoundException(
-                    detail=f"Client com ID '{client_id}' não encontrado",
-                    resource_id=client_id
-                )
+        return DomainClient(
+            id=db_model.id,
+            client_id=db_model.client_id,
+            client_secret=db_model.client_secret,
+            is_active=db_model.is_active,
+            created_at=db_model.created_at,
+            updated_at=db_model.updated_at
+        )
 
-            # Atualizar status
-            client.is_active = active
-
-            # Salvar alterações
-            db.add(client)
-            db.commit()
-            db.refresh(client)
-
-            status_text = "ativado" if active else "desativado"
-            self.logger.info(f"Client {client_id} {status_text}")
-            return client
-
-        except ResourceNotFoundException:
-            # Repassar a exceção já formatada
-            raise
-
-        except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao alterar status do client: {str(e)}")
-            raise DatabaseOperationException(
-                detail=f"Erro ao {'ativar' if active else 'desativar'} client",
-                original_error=e
-            )
-
-    def list_active_clients(self, db: Session, skip: int = 0, limit: int = 100) -> List[Client]:
+    def delete(self, db: Session, *, id: Any) -> None:
         """
-        Lista clients ativos.
+        Delete a client by ID.
 
         Args:
-            db: Sessão do banco de dados
-            skip: Registros a pular (para paginação)
-            limit: Máximo de registros a retornar
-
-        Returns:
-            Lista de clients ativos
+            db: Database session
+            id: ID of the client to delete
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            ResourceNotFoundException: If the client is not found
         """
-        try:
-            return db.query(Client) \
-                .filter(Client.is_active == True) \
-                .order_by(Client.client_id) \
-                .offset(skip) \
-                .limit(limit) \
-                .all()
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao listar clients ativos: {str(e)}")
-            raise DatabaseOperationException(
-                detail="Erro ao listar clients ativos",
-                original_error=e
+        client = self.get(db, id=id)
+        if not client:
+            raise ResourceNotFoundException(
+                detail=f"Client with ID {id} not found",
+                resource_id=id
             )
 
+        db.delete(client)
+        db.commit()
+        return client
 
-# Instância singleton do CRUD para ser usada pelos serviços
+    def list(self, db: Session, *, skip: int = 0, limit: int = 100, **filters) -> List[Client]:
+        """
+        List clients with optional filtering.
+
+        Args:
+            db: Database session
+            skip: Number of records to skip (for pagination)
+            limit: Maximum number of records to return
+            **filters: Additional filters
+
+        Returns:
+            List of Client objects
+        """
+        return self.get_multi(db, skip=skip, limit=limit, **filters)
+
+
+# instância pública que será usada pelos use cases
 client = ClientCRUD(Client)
