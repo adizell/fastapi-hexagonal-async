@@ -8,7 +8,6 @@ from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.use_cases.auth_use_cases import AsyncAuthService
-from app.adapters.outbound.persistence.models.user_model import User
 from app.adapters.inbound.api.deps import get_session, get_current_client
 from app.adapters.configuration.config import settings
 from app.domain.exceptions import (

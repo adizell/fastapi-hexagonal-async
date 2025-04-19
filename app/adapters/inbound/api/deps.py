@@ -147,7 +147,7 @@ async def get_current_user(
     try:
         token = credentials.credentials
         # Pass db to verify_access_token
-        payload = await UserAuthManager.verify_access_token(token, db=db)
+        payload = await UserAuthManager.verify_access_token(token)
 
         try:
             user_id = UUID(payload.get("sub"))
@@ -163,7 +163,7 @@ async def get_current_user(
             User.is_active.is_(True)
         )
         result = await db.execute(query)
-        user = result.scalar_one_or_none()
+        user = result.unique().scalar_one_or_none()
 
         if not user:
             logger.warning(f"User {user_id} not found or inactive")

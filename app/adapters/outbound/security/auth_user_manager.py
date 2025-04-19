@@ -1,7 +1,7 @@
 # app/adapters/outbound/security/auth_user_manager.py (async version)
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from jose import jwt, JWTError
 from fastapi import HTTPException, status
@@ -44,7 +44,7 @@ class UserAuthManager:
         if expires_delta is None:
             expires_delta = timedelta(minutes=DEFAULT_EXPIRES_MIN)
 
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
         jti = str(uuid.uuid4())
 
         payload = {
@@ -98,7 +98,7 @@ class UserAuthManager:
             # Default: configured refresh days
             expires_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
         payload = {
             "sub": str(subject),
             "exp": int(expire.timestamp()),

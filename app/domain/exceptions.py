@@ -64,10 +64,12 @@ class PermissionDeniedException(DomainException):
 class InvalidCredentialsException(DomainException):
     """Credenciais inválidas."""
 
-    def __init__(self, message: str = "Credenciais inválidas"):
+    def __init__(self, message: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        msg = message or "Credenciais inválidas"
         super().__init__(
-            message=message,
-            internal_code="INVALID_CREDENTIALS"
+            message=msg,
+            internal_code="INVALID_CREDENTIALS",
+            details=details
         )
 
 

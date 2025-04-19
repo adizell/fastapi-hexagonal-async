@@ -9,18 +9,15 @@ including registration, login, and token renewal.
 
 import logging
 import uuid
+from datetime import timezone
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Optional
 
 from app.adapters.configuration.config import settings
 from app.adapters.outbound.persistence.repositories.user_repository import user_repository
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 from app.application.dtos.user_dto import UserCreate, TokenData, UserOutput
-from app.application.ports.inbound import IUserUseCase
-from app.domain.exceptions import InvalidCredentialsException, DatabaseOperationException, \
-    ResourceAlreadyExistsException
-from app.domain.services.auth_service import PasswordService
+from app.domain.exceptions import InvalidCredentialsException, DatabaseOperationException
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +97,7 @@ class AsyncAuthService:
         )
 
         # Calculate expiration date to send to client
-        expires_at = datetime.utcnow() + access_token_expires
+        expires_at = datetime.now(timezone.utc) + access_token_expires
 
         # Return token data
         return TokenData(
@@ -153,7 +150,7 @@ class AsyncAuthService:
             )
 
             # Calculate expiration time for response
-            expires_at = datetime.utcnow() + access_token_expires
+            expires_at = datetime.now(timezone.utc) + access_token_expires
 
             # Return new token data
             return TokenData(

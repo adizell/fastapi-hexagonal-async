@@ -7,9 +7,10 @@ Este módulo contém rotas para geração de JWT para clients, criação de clie
 e atualização de credenciais de clients.
 """
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -49,7 +50,7 @@ async def client_login(
         request: Request,
         username: str = Form(...),
         password: str = Form(...),
-        db_session: Session = Depends(get_db_session),
+        db_session: AsyncSession = Depends(get_db_session),
 ):
     """
     Verifica as credenciais do client e gera um token JWT.
@@ -73,7 +74,10 @@ async def client_login(
             })
 
         # Busca o client no banco para obter o ID (sub no token)
-        client = db_session.query(Client).filter(Client.client_id == username).first()
+        stmt = select(Client).where(Client.client_id == username)
+        result = await db_session.execute(stmt)
+        client = result.scalar_one_or_none()
+
         if not client:
             logger.warning(f"Tentativa de login com client inexistente: {username}")
             return templates.TemplateResponse("create_client_jwt.html", {
@@ -90,7 +94,7 @@ async def client_login(
             })
 
         # Gera token com o ID do client (convertendo para string para garantir compatibilidade)
-        token = ClientAuthManager.create_client_token(subject=str(client.id))
+        token = await ClientAuthManager.create_client_token(subject=str(client.id))
         logger.info(f"Token JWT gerado com sucesso para client: {username}")
 
         return templates.TemplateResponse("create_client_jwt.html", {
@@ -127,7 +131,7 @@ async def create_client_form(request: Request):
 async def create_client(
         request: Request,
         password: str = Form(...),
-        db_session: Session = Depends(get_db_session),
+        db_session: AsyncSession = Depends(get_db_session),
 ):
     """
     Cria um novo client após validar a senha administrativa.
@@ -148,10 +152,10 @@ async def create_client(
         })
 
     try:
-        from app.application.use_cases.client_use_cases import ClientService
-        uc = ClientService(db_session)
+        from app.application.use_cases.client_use_cases import AsyncClientService
+        uc = AsyncClientService(db_session)
         # Pass the password to create_client
-        credentials = uc.create_client(admin_password=password)
+        credentials = await uc.create_client(admin_password=password)
 
         return templates.TemplateResponse("create_client_url.html", {
             "request": request,
@@ -180,7 +184,7 @@ async def update_client_secret(
         request: Request,
         client_id: str = Form(...),
         password: str = Form(...),
-        db_session: Session = Depends(get_db_session),
+        db_session: AsyncSession = Depends(get_db_session),
 ):
     """
     Atualiza a chave secreta de um client após validação da senha administrativa.
@@ -203,7 +207,10 @@ async def update_client_secret(
 
     try:
         # Busca o client para verificar se existe
-        client = db_session.query(Client).filter(Client.client_id == client_id).first()
+        stmt = select(Client).where(Client.client_id == client_id)
+        result = await db_session.execute(stmt)
+        client = result.scalar_one_or_none()
+
         if not client:
             return templates.TemplateResponse("update_client_url.html", {
                 "request": request,
@@ -218,12 +225,12 @@ async def update_client_secret(
             })
 
         # Atualiza o secret do client
-        from app.application.use_cases.client_use_cases import ClientService
-        uc = ClientService(db_session)
-        result = uc.update_client_secret(client_id=client_id, admin_password=password)
+        from app.application.use_cases.client_use_cases import AsyncClientService
+        uc = AsyncClientService(db_session)
+        result = await uc.update_client_secret(client_id=client_id, admin_password=password)
 
         # Gerar token JWT com o ID do client
-        token = ClientAuthManager.create_client_token(subject=str(client.id))
+        token = await ClientAuthManager.create_client_token(subject=str(client.id))
 
         return templates.TemplateResponse("update_client_url.html", {
             "request": request,

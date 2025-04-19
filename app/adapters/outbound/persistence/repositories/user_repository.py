@@ -52,7 +52,7 @@ class AsyncUserCRUD(AsyncCRUDBase[User, UserCreate, UserUpdate], IUserRepository
         try:
             query = select(User).where(User.email == email)
             result = await db.execute(query)
-            return result.scalar_one_or_none()
+            return result.unique().scalar_one_or_none()
         except SQLAlchemyError as e:
             self.logger.error(f"Error fetching user by email '{email}': {e}")
             raise DatabaseOperationException(
