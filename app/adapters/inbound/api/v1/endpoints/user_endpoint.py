@@ -1,12 +1,12 @@
-# app/adapters/inbound/api/v1/endpoints/user_endpoint.py
+# app/adapters/inbound/api/v1/endpoints/user_endpoint.py (async version)
 
 import logging
 from uuid import UUID
 from fastapi_pagination import Params, Page
 from fastapi import APIRouter, Depends, status, Query, HTTPException, Path
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases.user_use_cases import UserService
+from app.application.use_cases.user_use_cases import AsyncUserService
 from app.adapters.outbound.persistence.models.user_model import User
 from app.shared.utils.pagination import pagination_params
 from app.adapters.outbound.security.permissions import require_superuser
@@ -34,11 +34,11 @@ router = APIRouter()
 @router.get(
     "/me",
     response_model=UserOutput,
-    summary="Get My Data - Dados do usuário logado",
-    description="Retorna os dados do usuário autenticado via token JWT.",
+    summary="Get My Data - Logged in user data",
+    description="Returns the authenticated user data via JWT token.",
     responses={
         200: {
-            "description": "Dados do usuário autenticado",
+            "description": "Authenticated user data",
             "content": {
                 "application/json": {
                     "example": {
@@ -53,26 +53,26 @@ router = APIRouter()
             }
         },
         401: {
-            "description": "Não autenticado ou token inválido",
+            "description": "Not authenticated or invalid token",
             "content": {
                 "application/json": {
                     "example": {
-                        "detail": "Token inválido ou expirado."
+                        "detail": "Invalid or expired token."
                     }
                 }
             }
         }
     }
 )
-def get_my_data(
-        db: Session = Depends(get_session),
+async def get_my_data(
+        db: AsyncSession = Depends(get_session),
         current_user: User = Depends(get_current_user),
 ):
-    # Verificação adicional do status ativo
+    # Additional active status check
     if not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Esta conta de usuário está inativa.",
+            detail="This user account is inactive.",
             headers={"WWW-Authenticate": "Bearer"}
         )
     return current_user
@@ -81,142 +81,148 @@ def get_my_data(
 @router.put(
     "/me",
     response_model=UserOutput,
-    summary="Update My Data - Atualizar dados do próprio usuário",
-    description="Permite que o usuário autenticado atualize seu próprio email e senha.",
+    summary="Update My Data - Update own user data",
+    description="Allows the authenticated user to update their own email and password.",
 )
-def update_my_data(
+async def update_my_data(
         update_data: UserSelfUpdate,
-        db: Session = Depends(get_session),
+        db: AsyncSession = Depends(get_session),
         current_user: User = Depends(get_current_user),
 ):
     """
-    Permite que o usuário atualize seus próprios dados (email e password).
-    Não permite que o usuário altere seu status ativo/inativo ou permissões.
+    Allows the user to update their own data (email and password).
+    Does not allow the user to change their active/inactive status or permissions.
     """
-    return UserService(db).update_self(user_id=current_user.id, data=update_data)
+    service = AsyncUserService(db)
+    return await service.update_self(user_id=current_user.id, data=update_data)
 
 
 @router.get(
     "/list",
     response_model=Page[UserListOutput],
-    summary="List Users - Listar todos usuários",
-    description="Retorna uma lista paginada de usuários. Apenas superusuários têm acesso.",
+    summary="List Users - List all users",
+    description="Returns a paginated list of users. Only superusers have access.",
 )
-def list_users(
-        db: Session = Depends(get_db_session),
-        current_user: User = Depends(require_superuser),  # Garante que é superusuário
+async def list_users(
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(require_superuser),  # Ensures it's a superuser
         params: Params = Depends(pagination_params),
-        order: str = Query("desc", enum=["asc", "desc"], description="Ordenação por data de criação (asc ou desc)"),
+        order: str = Query("desc", enum=["asc", "desc"], description="Sort by creation date (asc or desc)"),
 ):
-    return UserService(db).list_users(current_user=current_user, params=params, order=order)
+    service = AsyncUserService(db)
+    return await service.list_users(current_user=current_user, params=params, order=order)
 
 
 @router.put(
     "/update/{user_id}",
     response_model=UserOutput,
-    summary="Update User - Atualizar dados de um usuário específico",
-    description="Atualiza os dados de um usuário específico. Apenas superusuários têm acesso.",
+    summary="Update User - Update a specific user's data",
+    description="Updates a specific user's data. Only superusers have access.",
 )
-def update_user(
-        user_id: UUID = Path(..., description="ID do usuário a ser atualizado"),
+async def update_user(
+        user_id: UUID = Path(..., description="ID of the user to update"),
         update_data: UserUpdate = ...,
-        db: Session = Depends(get_session),
-        current_user: User = Depends(require_superuser),  # Garante que é superusuário
+        db: AsyncSession = Depends(get_session),
+        current_user: User = Depends(require_superuser),  # Ensures it's a superuser
 ):
     """
-    Permite que um superusuário atualize os dados de qualquer usuário.
+    Allows a superuser to update any user's data.
     """
     try:
-        return UserService(db).update_user(user_id=user_id, data=update_data)
+        service = AsyncUserService(db)
+        return await service.update_user(user_id=user_id, data=update_data)
     except ResourceNotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado."
+            detail="User not found."
         )
     except ResourceInactiveException:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="O usuário está inativo. Considere reativá-lo através do endpoint de reativação."
+            detail="The user is inactive. Consider reactivating it through the reactivation endpoint."
         )
     except Exception as e:
-        logger.exception(f"Erro ao atualizar usuário: {str(e)}")
+        logger.exception(f"Error updating user: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro interno ao atualizar usuário: {str(e)}"
+            detail=f"Internal error updating user: {str(e)}"
         )
 
 
 @router.delete(
     "/deactivate/{user_id}",
     status_code=status.HTTP_200_OK,
-    summary="Deactivate User - Desativar um usuário",
-    description="Desativa (soft delete) um usuário específico. Apenas superusuários têm acesso.",
+    summary="Deactivate User - Deactivate a user",
+    description="Deactivates (soft delete) a specific user. Only superusers have access.",
     response_model=dict,
 )
-def deactivate_user(
-        user_id: UUID = Path(..., description="ID do usuário a ser desativado"),
-        db: Session = Depends(get_session),
-        current_user: User = Depends(require_superuser),  # Garante que é superusuário
+async def deactivate_user(
+        user_id: UUID = Path(..., description="ID of the user to deactivate"),
+        db: AsyncSession = Depends(get_session),
+        current_user: User = Depends(require_superuser),  # Ensures it's a superuser
 ):
     """
-    Realiza soft delete do usuário, marcando-o como inativo.
-    Usuários inativos não podem fazer login nem acessar recursos da API.
+    Performs soft delete of the user, marking it as inactive.
+    Inactive users cannot log in or access API resources.
     """
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Não é possível desativar seu próprio usuário."
+            detail="You cannot deactivate your own user."
         )
 
-    return UserService(db).deactivate_user(user_id=user_id)
+    service = AsyncUserService(db)
+    return await service.deactivate_user(user_id=user_id)
 
 
 @router.post(
     "/reactivate/{user_id}",
     status_code=status.HTTP_200_OK,
-    summary="Reactivate User - Reativar um usuário",
-    description="Reativa um usuário previamente desativado. Apenas superusuários têm acesso.",
+    summary="Reactivate User - Reactivate a user",
+    description="Reactivates a previously deactivated user. Only superusers have access.",
     response_model=dict,
 )
-def reactivate_user(
-        user_id: UUID = Path(..., description="ID do usuário a ser reativado"),
-        db: Session = Depends(get_session),
-        current_user: User = Depends(require_superuser),  # Garante que é superusuário
+async def reactivate_user(
+        user_id: UUID = Path(..., description="ID of the user to reactivate"),
+        db: AsyncSession = Depends(get_session),
+        current_user: User = Depends(require_superuser),  # Ensures it's a superuser
 ):
     """
-    Reativa um usuário que estava inativo, permitindo que ele faça login novamente.
+    Reactivates a user who was inactive, allowing them to log in again.
     """
-    return UserService(db).reactivate_user(user_id=user_id)
+    service = AsyncUserService(db)
+    return await service.reactivate_user(user_id=user_id)
 
 
 @router.delete(
     "/delete/{user_id}",
     status_code=status.HTTP_200_OK,
-    summary="Delete User Permanently - Excluir usuário permanentemente",
-    description="Exclui permanentemente um usuário do sistema. Disponível apenas para administradores.",
+    summary="Delete User Permanently - Permanently delete a user",
+    description="Permanently deletes a user from the system. Available only to administrators.",
     response_model=dict,
 )
-def delete_user_permanently(
-        user_id: UUID = Path(..., description="ID do usuário a ser excluído"),
-        db: Session = Depends(get_session),
-        current_user: User = Depends(require_superuser),  # Garante que é superusuário
-        confirm: bool = Query(False, description="Confirmação explícita para exclusão permanente"),
+async def delete_user_permanently(
+        user_id: UUID = Path(..., description="ID of the user to delete"),
+        db: AsyncSession = Depends(get_session),
+        current_user: User = Depends(require_superuser),  # Ensures it's a superuser
+        confirm: bool = Query(False, description="Explicit confirmation for permanent deletion"),
 ):
     """
-    Exclui permanentemente um usuário do sistema.
-    Esta operação não pode ser desfeita e requer confirmação explícita.
-    Não será permitido excluir usuários que possuem pets vinculados.
+    Permanently deletes a user from the system.
+    This operation cannot be undone and requires explicit confirmation.
+    Users with associated pets cannot be deleted.
     """
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Não é possível excluir seu próprio usuário."
+            detail="You cannot delete your own user."
         )
 
     if not confirm:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A exclusão permanente requer confirmação explícita. Adicione ?confirm=true à URL."
+            detail="Permanent deletion requires explicit confirmation. Add ?confirm=true to the URL."
         )
 
-    return UserService(db).delete_user_permanently(user_id=user_id)
+    service = AsyncUserService(db)
+    return await service.delete_user_permanently(user_id=user_id)

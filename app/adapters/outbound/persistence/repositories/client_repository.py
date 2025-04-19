@@ -1,18 +1,19 @@
-# app/adapters/outbound/persistence/repositories/client_repository.py
+# app/adapters/outbound/persistence/repositories/client_repository.py (async version)
 
 """
-Repositório para operações com clientes.
+Repository for client operations.
 
-Este módulo implementa o repositório que realiza operações de banco de dados
-relacionadas a clientes, implementando a interface IClientRepository.
+This module implements the repository that performs database operations
+related to clients, implementing the IClientRepository interface.
 """
 
 import secrets
 from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
+from app.adapters.outbound.persistence.repositories.base_repository import AsyncCRUDBase
 from app.adapters.outbound.persistence.models import Client
 from app.application.dtos.client_dto import Client as ClientSchema
 from app.application.ports.outbound import IClientRepository
@@ -25,195 +26,197 @@ from app.domain.exceptions import (
 )
 
 
-class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema], IClientRepository):
+class AsyncClientCRUD(AsyncCRUDBase[Client, ClientSchema, ClientSchema], IClientRepository):
     """
-    Implementação do repositório CRUD para a entidade Client.
+    Async implementation of CRUD repository for the Client entity.
 
-    Estende CRUDBase com operações específicas para clients,
-    como busca por client_id e geração de credenciais.
+    Extends AsyncCRUDBase with client-specific operations,
+    such as lookup by client_id and credential generation.
     """
 
-    def get_by_client_id(self, db: Session, client_id: str) -> Optional[Client]:
+    async def get_by_client_id(self, db: AsyncSession, client_id: str) -> Optional[Client]:
         """
-        Busca um client pelo client_id.
+        Find a client by client_id.
 
         Args:
-            db: Sessão do banco de dados
-            client_id: Identificador do client
+            db: Async database session
+            client_id: Client identifier
 
         Returns:
-            Client encontrado ou None se não existir
+            Client found or None if it doesn't exist
 
         Raises:
-            DatabaseOperationException: Em caso de erro de banco de dados
+            DatabaseOperationException: In case of database error
         """
         try:
-            return db.query(Client).filter(Client.client_id == client_id).first()
+            query = select(Client).where(Client.client_id == client_id)
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao buscar client por client_id '{client_id}': {str(e)}")
+            self.logger.error(f"Error fetching client by client_id '{client_id}': {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao buscar client por client_id",
+                detail="Error fetching client by client_id",
                 original_error=e
             )
 
-    def create_with_credentials(self, db: Session) -> Dict[str, str]:
+    async def create_with_credentials(self, db: AsyncSession) -> Dict[str, str]:
         """
-        Cria um novo client com credenciais geradas automaticamente.
+        Create a new client with automatically generated credentials.
 
         Args:
-            db: Sessão do banco de dados
+            db: Async database session
 
         Returns:
-            Dicionário com client_id e client_secret
+            Dictionary with client_id and client_secret
 
         Raises:
-            DatabaseOperationException: Em caso de erro de banco de dados
+            DatabaseOperationException: In case of database error
         """
         try:
-            # Gerar credenciais
+            # Generate credentials
             client_id = secrets.token_urlsafe(16)
             client_secret_plain = secrets.token_urlsafe(32)
-            client_secret_hash = ClientAuthManager.hash_password(client_secret_plain)
+            client_secret_hash = await ClientAuthManager.hash_password(client_secret_plain)
 
-            # Criar objeto do client
+            # Create client object
             client = Client(
                 client_id=client_id,
                 client_secret=client_secret_hash,
                 is_active=True
             )
 
-            # Salvar no banco
+            # Save to database
             db.add(client)
-            db.commit()
-            db.refresh(client)
+            await db.commit()
+            await db.refresh(client)
 
-            self.logger.info(f"Client criado: {client.id} (client_id: {client_id})")
+            self.logger.info(f"Client created: {client.id} (client_id: {client_id})")
 
-            # Retornar credenciais para uso imediato (o segredo não fica armazenado em texto plano)
+            # Return credentials for immediate use (the secret is not stored in plain text)
             return {
                 "client_id": client_id,
-                "client_secret": client_secret_plain  # Esta é a única vez que o secret é exposto
+                "client_secret": client_secret_plain  # This is the only time the secret is exposed
             }
 
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao criar client: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Error creating client: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao criar client",
+                detail="Error creating client",
                 original_error=e
             )
 
-    def update_secret(self, db: Session, client_id: str) -> Dict[str, str]:
+    async def update_secret(self, db: AsyncSession, client_id: str) -> Dict[str, str]:
         """
-        Atualiza a chave secreta de um client existente.
+        Update the secret key of an existing client.
 
         Args:
-            db: Sessão do banco de dados
-            client_id: Identificador do client
+            db: Async database session
+            client_id: Client identifier
 
         Returns:
-            Dicionário com client_id e nova client_secret
+            Dictionary with client_id and new client_secret
 
         Raises:
-            ResourceNotFoundException: Se o client não existir
-            DatabaseOperationException: Em caso de erro de banco de dados
+            ResourceNotFoundException: If the client doesn't exist
+            DatabaseOperationException: In case of database error
         """
         try:
-            # Buscar o client
-            client = self.get_by_client_id(db, client_id)
+            # Find the client
+            client = await self.get_by_client_id(db, client_id)
             if not client:
                 raise ResourceNotFoundException(
-                    detail=f"Client com ID '{client_id}' não encontrado",
+                    detail=f"Client with ID '{client_id}' not found",
                     resource_id=client_id
                 )
 
-            # Gerar nova chave secreta
+            # Generate new secret key
             new_secret_plain = secrets.token_urlsafe(32)
-            new_secret_hash = ClientAuthManager.hash_password(new_secret_plain)
+            new_secret_hash = await ClientAuthManager.hash_password(new_secret_plain)
 
-            # Atualizar a chave no banco
+            # Update the key in the database
             client.client_secret = new_secret_hash
 
-            # Salvar alterações
+            # Save changes
             db.add(client)
-            db.commit()
-            db.refresh(client)
+            await db.commit()
+            await db.refresh(client)
 
-            self.logger.info(f"Chave secreta atualizada para client {client_id}")
+            self.logger.info(f"Secret key updated for client {client_id}")
 
-            # Retornar nova chave para uso imediato
+            # Return new key for immediate use
             return {
                 "client_id": client_id,
-                "new_client_secret": new_secret_plain  # Esta é a única vez que o secret é exposto
+                "new_client_secret": new_secret_plain  # This is the only time the secret is exposed
             }
 
         except ResourceNotFoundException:
-            # Repassar a exceção já formatada
+            # Pass through the already formatted exception
             raise
 
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao atualizar chave secreta do client: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Error updating client secret key: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao atualizar chave secreta do client",
+                detail="Error updating client secret key",
                 original_error=e
             )
 
-    def authenticate_client(self, db: Session, client_id: str, client_secret: str) -> Client:
+    async def authenticate_client(self, db: AsyncSession, client_id: str, client_secret: str) -> Client:
         """
-        Autentica um client verificando client_id e client_secret.
+        Authenticate a client by verifying client_id and client_secret.
 
         Args:
-            db: Sessão do banco de dados
-            client_id: Identificador do client
-            client_secret: Chave secreta em texto plano
+            db: Async database session
+            client_id: Client identifier
+            client_secret: Plain text secret key
 
         Returns:
-            Client autenticado
+            Authenticated Client
 
         Raises:
-            InvalidCredentialsException: Se as credenciais forem inválidas
-            DatabaseOperationException: Em caso de erro de banco de dados
+            InvalidCredentialsException: If credentials are invalid
+            DatabaseOperationException: In case of database error
         """
         try:
-            # Buscar o client
-            client = self.get_by_client_id(db, client_id)
+            # Find the client
+            client = await self.get_by_client_id(db, client_id)
             if not client:
-                self.logger.warning(f"Tentativa de autenticação com client_id inexistente: {client_id}")
-                raise InvalidCredentialsException(detail="Credenciais de client inválidas")
+                self.logger.warning(f"Authentication attempt with non-existent client_id: {client_id}")
+                raise InvalidCredentialsException(detail="Invalid client credentials")
 
-            # Verificar se o client está ativo
+            # Check if the client is active
             if not client.is_active:
-                self.logger.warning(f"Tentativa de autenticação com client inativo: {client_id}")
-                raise InvalidCredentialsException(detail="Client está inativo")
+                self.logger.warning(f"Authentication attempt with inactive client: {client_id}")
+                raise InvalidCredentialsException(detail="Client is inactive")
 
-            # Verificar a senha
-            if not ClientAuthManager.verify_password(client_secret, client.client_secret):
-                self.logger.warning(f"Tentativa de autenticação com senha incorreta: {client_id}")
-                raise InvalidCredentialsException(detail="Credenciais de client inválidas")
+            # Verify the password
+            if not await ClientAuthManager.verify_password(client_secret, client.client_secret):
+                self.logger.warning(f"Authentication attempt with incorrect password: {client_id}")
+                raise InvalidCredentialsException(detail="Invalid client credentials")
 
             return client
 
         except InvalidCredentialsException:
-            # Repassar a exceção já formatada
+            # Pass through the already formatted exception
             raise
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao autenticar client: {str(e)}")
+            self.logger.error(f"Error authenticating client: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao autenticar client",
+                detail="Error authenticating client",
                 original_error=e
             )
 
     def to_domain(self, db_model: Client) -> DomainClient:
         """
-        Converte modelo de banco de dados para modelo de domínio.
+        Convert database model to domain model.
 
         Args:
-            db_model: Modelo ORM do cliente
+            db_model: Client ORM model
 
         Returns:
-            Modelo de domínio do cliente
+            Domain model of client
         """
         return DomainClient(
             id=db_model.id,
@@ -224,34 +227,34 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema], IClientRepository
             updated_at=db_model.updated_at
         )
 
-    def delete(self, db: Session, *, id: Any) -> None:
+    async def delete(self, db: AsyncSession, *, id: Any) -> None:
         """
         Delete a client by ID.
 
         Args:
-            db: Database session
+            db: Async database session
             id: ID of the client to delete
 
         Raises:
             ResourceNotFoundException: If the client is not found
         """
-        client = self.get(db, id=id)
+        client = await self.get(db, id=id)
         if not client:
             raise ResourceNotFoundException(
                 detail=f"Client with ID {id} not found",
                 resource_id=id
             )
 
-        db.delete(client)
-        db.commit()
+        await db.delete(client)
+        await db.commit()
         return client
 
-    def list(self, db: Session, *, skip: int = 0, limit: int = 100, **filters) -> List[Client]:
+    async def list(self, db: AsyncSession, *, skip: int = 0, limit: int = 100, **filters) -> List[Client]:
         """
         List clients with optional filtering.
 
         Args:
-            db: Database session
+            db: Async database session
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             **filters: Additional filters
@@ -259,8 +262,8 @@ class ClientCRUD(CRUDBase[Client, ClientSchema, ClientSchema], IClientRepository
         Returns:
             List of Client objects
         """
-        return self.get_multi(db, skip=skip, limit=limit, **filters)
+        return await self.get_multi(db, skip=skip, limit=limit, **filters)
 
 
-# instância pública que será usada pelos use cases
-client = ClientCRUD(Client)
+# Public instance to be used by use cases
+client_repository = AsyncClientCRUD(Client)

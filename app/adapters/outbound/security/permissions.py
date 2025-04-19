@@ -1,42 +1,42 @@
-# app/adapters/outbound/security/permissions.py
+# app/adapters/outbound/security/permissions.py (async version)
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, status
 
 from app.adapters.inbound.api.deps import get_session, get_current_user
 from app.adapters.outbound.persistence.models.user_model import User
 
 
-def require_superuser(current_user: User = Depends(get_current_user)) -> User:
+async def require_superuser(current_user: User = Depends(get_current_user)) -> User:
     """
-    Valida se o usuário autenticado é superusuário.
-    Lánça HTTP 403 se não for.
+    Validates if the authenticated user is a superuser.
+    Raises HTTP 403 if not.
     """
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso permitido apenas a superusuários."
+            detail="Access allowed only for superusers."
         )
     return current_user
 
 
 def require_permission(permission_codename: str):
     """
-    Retorna uma dependência que valida se o usuário autenticado possui uma permissão específica.
-    Superusuários são automaticamente autorizados.
+    Returns a dependency that validates if the authenticated user has a specific permission.
+    Superusers are automatically authorized.
 
-    Uso:
+    Usage:
         @router.get(..., dependencies=[Depends(require_permission("add_pet"))])
     """
 
-    def permission_checker(
+    async def permission_checker(
             current_user: User = Depends(get_current_user),
-            db: Session = Depends(get_session),
+            db: AsyncSession = Depends(get_session),
     ) -> User:
         if current_user.is_superuser:
             return current_user
 
-        # Coleta todas as permissões do usuário
+        # Collect all user permissions
         user_permissions = {perm.codename for perm in current_user.permissions}
         for group in current_user.groups:
             for perm in group.permissions:
@@ -45,7 +45,7 @@ def require_permission(permission_codename: str):
         if permission_codename not in user_permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permissão '{permission_codename}' negada ao usuário."
+                detail=f"Permission '{permission_codename}' denied to user."
             )
 
         return current_user
@@ -55,10 +55,10 @@ def require_permission(permission_codename: str):
 
 def require_permission_or_superuser(permission_codename: str):
     """
-    Dependência que valida se o usuário tem permissão ou é superusuário.
+    Dependency that validates if the user has permission or is a superuser.
     """
 
-    def checker(current_user: User = Depends(get_current_user)) -> User:
+    async def checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.is_superuser:
             return current_user
 
@@ -69,7 +69,7 @@ def require_permission_or_superuser(permission_codename: str):
         if permission_codename not in user_permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permissão '{permission_codename}' negada."
+                detail=f"Permission '{permission_codename}' denied."
             )
 
         return current_user

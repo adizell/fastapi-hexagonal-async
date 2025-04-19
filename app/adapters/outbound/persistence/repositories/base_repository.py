@@ -1,16 +1,10 @@
-# app/adapters/outbound/persistence/repositories/base_repository.py
-
-"""
-Módulo base para todos os repositórios CRUD.
-
-Este módulo define a classe CRUDBase que implementa operações padrão
-de Create, Read, Update e Delete para entidades do sistema.
-"""
+# app/adapters/outbound/persistence/repositories/base_repository.py (async version)
 
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.future import select
 import logging
 
 from app.adapters.outbound.persistence.models.base_model import Base
@@ -20,334 +14,347 @@ from app.domain.exceptions import (
     DatabaseOperationException
 )
 
-# Define tipo genérico para modelos SQLAlchemy
+# Define generic type for SQLAlchemy models
 ModelType = TypeVar("ModelType", bound=Base)
-# Define tipos genéricos para dtos Pydantic
+# Define generic types for Pydantic DTOs
 CreateSchemaType = TypeVar("CreateSchemaType")
 UpdateSchemaType = TypeVar("UpdateSchemaType")
 
-# Configurar logger
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+class AsyncCRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     """
-    Classe base para implementação do padrão Repository.
+    Async base class for implementing the Repository pattern.
 
-    Fornece operações CRUD genéricas que podem ser usadas por qualquer entidade.
-    Inclui tratamento de erros e logging consistentes.
+    Provides generic CRUD operations that can be used by any entity.
+    Includes consistent error handling and logging.
 
     Attributes:
-        model: Classe do modelo SQLAlchemy
-        logger: Logger configurado para a classe
+        model: SQLAlchemy model class
+        logger: Configured logger for the class
     """
 
     def __init__(self, model: Type[ModelType]):
         """
-        Inicializa o repositório com o modelo SQLAlchemy.
+        Initialize the repository with an SQLAlchemy model.
 
         Args:
-            model: Classe do modelo SQLAlchemy associado a este repositório
+            model: SQLAlchemy model class associated with this repository
         """
         self.model = model
         self.logger = logging.getLogger(f"{__name__}.{model.__name__}")
 
-    def get(self, db: Session, id: Any) -> Optional[ModelType]:
+    async def get(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
         """
-        Obtém uma entidade pelo ID.
+        Get an entity by ID.
 
         Args:
-            db: Sessão do banco de dados
-            id: ID da entidade
+            db: Async database session
+            id: ID of the entity
 
         Returns:
-            Entidade encontrada ou None se não existir
+            Entity found or None if it doesn't exist
         """
         try:
-            return db.query(self.model).filter(self.model.id == id).first()
+            query = select(self.model).where(self.model.id == id)
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao buscar {self.model.__name__} com ID {id}: {str(e)}")
+            self.logger.error(f"Error fetching {self.model.__name__} with ID {id}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao buscar {self.model.__name__}",
+                detail=f"Error fetching {self.model.__name__}",
                 original_error=e
             )
 
-    def get_by_field(self, db: Session, field_name: str, value: Any) -> Optional[ModelType]:
+    async def get_by_field(self, db: AsyncSession, field_name: str, value: Any) -> Optional[ModelType]:
         """
-        Obtém uma entidade pelo valor de um campo específico.
+        Get an entity by the value of a specific field.
 
         Args:
-            db: Sessão do banco de dados
-            field_name: Nome do campo/coluna a filtrar
-            value: Valor a ser filtrado
+            db: Async database session
+            field_name: Name of the field/column to filter
+            value: Value to filter
 
         Returns:
-            Entidade encontrada ou None se não existir
+            Entity found or None if it doesn't exist
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            DatabaseOperationException: If an error occurs in the query
         """
         try:
-            return db.query(self.model).filter(getattr(self.model, field_name) == value).first()
+            query = select(self.model).where(getattr(self.model, field_name) == value)
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao buscar {self.model.__name__} com {field_name}={value}: {str(e)}")
+            self.logger.error(f"Error fetching {self.model.__name__} with {field_name}={value}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao buscar {self.model.__name__} por {field_name}",
+                detail=f"Error fetching {self.model.__name__} by {field_name}",
                 original_error=e
             )
 
-    def exists(self, db: Session, **filters) -> bool:
+    async def exists(self, db: AsyncSession, **filters) -> bool:
         """
-        Verifica se existe uma entidade com os filtros especificados.
+        Check if an entity exists with the specified filters.
 
         Args:
-            db: Sessão do banco de dados
-            **filters: Filtros no formato campo=valor
+            db: Async database session
+            **filters: Filters in the format field=value
 
         Returns:
-            True se existir, False caso contrário
+            True if it exists, False otherwise
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            DatabaseOperationException: If an error occurs in the query
         """
         try:
-            query = db.query(self.model)
+            query = select(self.model)
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    query = query.filter(getattr(self.model, field) == value)
+                    query = query.where(getattr(self.model, field) == value)
 
-            return db.query(query.exists()).scalar()
+            result = await db.execute(select(query.exists()))
+            return result.scalar()
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao verificar existência de {self.model.__name__}: {str(e)}")
+            self.logger.error(f"Error checking existence of {self.model.__name__}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao verificar existência de {self.model.__name__}",
+                detail=f"Error checking existence of {self.model.__name__}",
                 original_error=e
             )
 
-    def get_multi(
-            self, db: Session, *, skip: int = 0, limit: int = 100, **filters
+    async def get_multi(
+            self, db: AsyncSession, *, skip: int = 0, limit: int = 100, **filters
     ) -> List[ModelType]:
         """
-        Obtém múltiplas entidades com paginação e filtros opcionais.
+        Get multiple entities with pagination and optional filters.
 
         Args:
-            db: Sessão do banco de dados
-            skip: Número de registros a pular (para paginação)
-            limit: Número máximo de registros a retornar
-            **filters: Filtros adicionais no formato campo=valor
+            db: Async database session
+            skip: Number of records to skip (for pagination)
+            limit: Maximum number of records to return
+            **filters: Additional filters in the format field=value
 
         Returns:
-            Lista de entidades encontradas
+            List of found entities
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            DatabaseOperationException: If an error occurs in the query
         """
         try:
-            query = db.query(self.model)
+            query = select(self.model)
 
-            # Aplicar filtros dinâmicos
+            # Apply dynamic filters
             for field, value in filters.items():
                 if hasattr(self.model, field) and value is not None:
                     if isinstance(value, str) and value.startswith("%") and value.endswith("%"):
-                        # Filtro LIKE para strings com wildcards
-                        query = query.filter(getattr(self.model, field).ilike(value))
+                        # LIKE filter for strings with wildcards
+                        query = query.where(getattr(self.model, field).ilike(value))
                     else:
-                        # Filtro de igualdade padrão
-                        query = query.filter(getattr(self.model, field) == value)
+                        # Standard equality filter
+                        query = query.where(getattr(self.model, field) == value)
 
-            return query.offset(skip).limit(limit).all()
+            query = query.offset(skip).limit(limit)
+            result = await db.execute(query)
+            return result.scalars().all()
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao listar {self.model.__name__}s: {str(e)}")
+            self.logger.error(f"Error listing {self.model.__name__}s: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao listar {self.model.__name__}s",
+                detail=f"Error listing {self.model.__name__}s",
                 original_error=e
             )
 
-    def create(self, db: Session, *, obj_in: CreateSchemaType) -> ModelType:
+    async def create(self, db: AsyncSession, *, obj_in: CreateSchemaType) -> ModelType:
         """
-        Cria uma nova entidade.
+        Create a new entity.
 
         Args:
-            db: Sessão do banco de dados
-            obj_in: Schema de criação com os dados da entidade
+            db: Async database session
+            obj_in: Creation schema with entity data
 
         Returns:
-            Nova entidade criada
+            Newly created entity
 
         Raises:
-            ResourceAlreadyExistsException: Se a entidade já existir
-            DatabaseOperationException: Se ocorrer outro erro de banco
+            ResourceAlreadyExistsException: If the entity already exists
+            DatabaseOperationException: If another database error occurs
         """
         try:
-            # Converter schema Pydantic para dicionário
+            # Convert Pydantic schema to dictionary
             obj_in_data = jsonable_encoder(obj_in)
 
-            # Criar instância do modelo com os dados
+            # Create model instance with data
             db_obj = self.model(**obj_in_data)
 
-            # Adicionar e persistir no banco
+            # Add and persist in database
             db.add(db_obj)
-            db.commit()
-            db.refresh(db_obj)
+            await db.commit()
+            await db.refresh(db_obj)
 
-            self.logger.info(f"{self.model.__name__} criado com ID: {db_obj.id}")
+            self.logger.info(f"{self.model.__name__} created with ID: {db_obj.id}")
             return db_obj
 
         except IntegrityError as e:
-            db.rollback()
+            await db.rollback()
             error_msg = str(e).lower()
             if 'unique' in error_msg or 'duplicate' in error_msg:
-                self.logger.warning(f"Tentativa de criar {self.model.__name__} duplicado: {str(e)}")
+                self.logger.warning(f"Attempt to create duplicate {self.model.__name__}: {str(e)}")
                 raise ResourceAlreadyExistsException(
-                    detail=f"{self.model.__name__} com esses dados já existe"
+                    detail=f"{self.model.__name__} with these data already exists"
                 )
             else:
-                self.logger.error(f"Erro de integridade ao criar {self.model.__name__}: {str(e)}")
+                self.logger.error(f"Integrity error creating {self.model.__name__}: {str(e)}")
                 raise DatabaseOperationException(original_error=e)
 
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao criar {self.model.__name__}: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Error creating {self.model.__name__}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao criar {self.model.__name__}",
+                detail=f"Error creating {self.model.__name__}",
                 original_error=e
             )
 
-    def update(
-            self, db: Session, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+    async def update(
+            self, db: AsyncSession, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, Dict[str, Any]]
     ) -> ModelType:
         """
-        Atualiza uma entidade existente.
+        Update an existing entity.
 
         Args:
-            db: Sessão do banco de dados
-            db_obj: Instância do modelo a ser atualizada
-            obj_in: Schema de atualização ou dicionário com os dados a atualizar
+            db: Async database session
+            db_obj: Model instance to update
+            obj_in: Update schema or dictionary with data to update
 
         Returns:
-            Entidade atualizada
+            Updated entity
 
         Raises:
-            ResourceAlreadyExistsException: Se a atualização violar restrição de unicidade
-            DatabaseOperationException: Se ocorrer outro erro de banco
+            ResourceAlreadyExistsException: If the update violates a uniqueness constraint
+            DatabaseOperationException: If another database error occurs
         """
         try:
-            # Obter os dados atuais da entidade
+            # Get current entity data
             obj_data = jsonable_encoder(db_obj)
 
-            # Preparar os dados de atualização
+            # Prepare update data
             if isinstance(obj_in, dict):
                 update_data = obj_in
             else:
                 update_data = obj_in.dict(exclude_unset=True)
 
-            # Atualizar cada campo conforme os novos valores
+            # Update each field with new values
             for field in obj_data:
                 if field in update_data:
                     setattr(db_obj, field, update_data[field])
 
-            # Salvar as alterações
+            # Save changes
             db.add(db_obj)
-            db.commit()
-            db.refresh(db_obj)
+            await db.commit()
+            await db.refresh(db_obj)
 
-            self.logger.info(f"{self.model.__name__} com ID {db_obj.id} atualizado")
+            self.logger.info(f"{self.model.__name__} with ID {db_obj.id} updated")
             return db_obj
 
         except IntegrityError as e:
-            db.rollback()
+            await db.rollback()
             error_msg = str(e).lower()
             if 'unique' in error_msg or 'duplicate' in error_msg:
-                self.logger.warning(f"Violação de unicidade ao atualizar {self.model.__name__}: {str(e)}")
+                self.logger.warning(f"Uniqueness violation updating {self.model.__name__}: {str(e)}")
                 raise ResourceAlreadyExistsException(
-                    detail=f"Não foi possível atualizar {self.model.__name__}: valor já existe"
+                    detail=f"Could not update {self.model.__name__}: value already exists"
                 )
             else:
-                self.logger.error(f"Erro de integridade ao atualizar {self.model.__name__}: {str(e)}")
+                self.logger.error(f"Integrity error updating {self.model.__name__}: {str(e)}")
                 raise DatabaseOperationException(original_error=e)
 
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao atualizar {self.model.__name__}: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Error updating {self.model.__name__}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao atualizar {self.model.__name__}",
+                detail=f"Error updating {self.model.__name__}",
                 original_error=e
             )
 
-    def remove(self, db: Session, *, id: Any) -> ModelType:
+    async def remove(self, db: AsyncSession, *, id: Any) -> ModelType:
         """
-        Remove uma entidade pelo ID.
+        Remove an entity by ID.
 
         Args:
-            db: Sessão do banco de dados
-            id: ID da entidade a remover
+            db: Async database session
+            id: ID of the entity to remove
 
         Returns:
-            Entidade removida
+            Removed entity
 
         Raises:
-            ResourceNotFoundException: Se a entidade não existir
-            DatabaseOperationException: Se ocorrer erro na remoção
+            ResourceNotFoundException: If the entity doesn't exist
+            DatabaseOperationException: If an error occurs during removal
         """
         try:
-            # Buscar a entidade
-            obj = db.query(self.model).get(id)
+            # Find the entity
+            obj = await self.get(db, id)
             if not obj:
                 raise ResourceNotFoundException(
-                    detail=f"{self.model.__name__} com ID {id} não encontrado",
+                    detail=f"{self.model.__name__} with ID {id} not found",
                     resource_id=id
                 )
 
-            # Remover a entidade
-            db.delete(obj)
-            db.commit()
+            # Remove the entity
+            await db.delete(obj)
+            await db.commit()
 
-            self.logger.info(f"{self.model.__name__} com ID {id} removido")
+            self.logger.info(f"{self.model.__name__} with ID {id} removed")
             return obj
 
         except IntegrityError as e:
-            db.rollback()
-            self.logger.error(f"Erro de integridade ao remover {self.model.__name__}: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Integrity error removing {self.model.__name__}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Não é possível remover {self.model.__name__} pois está sendo usado por outras entidades",
+                detail=f"Cannot remove {self.model.__name__} as it is being used by other entities",
                 original_error=e
             )
+
+        except ResourceNotFoundException:
+            # Pass through the already formatted exception
+            await db.rollback()
+            raise
 
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao remover {self.model.__name__}: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Error removing {self.model.__name__}: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao remover {self.model.__name__}",
+                detail=f"Error removing {self.model.__name__}",
                 original_error=e
             )
 
-    def count(self, db: Session, **filters) -> int:
+    async def count(self, db: AsyncSession, **filters) -> int:
         """
-        Conta o número de entidades que correspondem aos filtros.
+        Count the number of entities matching the filters.
 
         Args:
-            db: Sessão do banco de dados
-            **filters: Filtros no formato campo=valor
+            db: Async database session
+            **filters: Filters in the format field=value
 
         Returns:
-            Número de entidades correspondentes aos filtros
+            Number of entities matching the filters
 
         Raises:
-            DatabaseOperationException: Se ocorrer erro na consulta
+            DatabaseOperationException: If an error occurs in the query
         """
         try:
-            query = db.query(self.model)
+            query = select(self.model)
 
-            # Aplicar filtros
+            # Apply filters
             for field, value in filters.items():
                 if hasattr(self.model, field) and value is not None:
-                    query = query.filter(getattr(self.model, field) == value)
+                    query = query.where(getattr(self.model, field) == value)
 
-            return query.count()
+            result = await db.execute(select(db.query(query.subquery()).count()))
+            return result.scalar()
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao contar {self.model.__name__}s: {str(e)}")
+            self.logger.error(f"Error counting {self.model.__name__}s: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao contar {self.model.__name__}s",
+                detail=f"Error counting {self.model.__name__}s",
                 original_error=e
             )

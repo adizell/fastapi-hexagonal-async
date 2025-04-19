@@ -57,7 +57,6 @@ class User(Base):
         updated_at: Data e hora da última atualização
         groups: Grupos de permissão aos quais o usuário pertence
         permissions: Permissões individuais atribuídas diretamente ao usuário
-        pets: Pets associados ao usuário
     """
     __tablename__ = "users"
 

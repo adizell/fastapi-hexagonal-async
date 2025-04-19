@@ -1,16 +1,16 @@
-# app/shared/middleware/exception_middleware.py
+# app/shared/middleware/exception_middleware.py (async version)
 
 """
-Middleware para tratamento centralizado de exceções.
+Middleware for centralized exception handling.
 
-Este módulo define um middleware que intercepta exceções e formata
-respostas de erro adequadas para o cliente.
+This module defines middleware that intercepts exceptions and formats
+appropriate error responses for the client.
 """
 
 import time
 import logging
 import traceback
-from typing import Optional
+from typing import Optional, Callable
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -22,17 +22,17 @@ from jose.exceptions import JWTError, ExpiredSignatureError
 from app.domain.exceptions import DomainException
 from app.adapters.configuration.config import settings
 
-# Configurar logger
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-class ExceptionMiddleware(BaseHTTPMiddleware):
+class AsyncExceptionMiddleware(BaseHTTPMiddleware):
     """
-    Middleware para tratamento centralizado de exceções.
-    Captura exceções específicas e formata a resposta de acordo.
+    Middleware for centralized exception handling.
+    Captures specific exceptions and formats the response accordingly.
     """
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Callable):
         start_time = time.time()
         try:
             response = await call_next(request)
@@ -41,9 +41,9 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             return response
 
         except DomainException as exc:
-            # Exceções do domínio: mapeamento da exceção pura para código HTTP baseado em 'internal_code'
+            # Domain exceptions: mapping from pure exception to HTTP code based on 'internal_code'
             logger.warning(
-                f"Exceção do domínio: {str(exc)} | Código: {exc.internal_code} | "
+                f"Domain exception: {str(exc)} | Code: {exc.internal_code} | "
                 f"Path: {request.url.path}"
             )
             if exc.internal_code == "RESOURCE_NOT_FOUND":
@@ -73,25 +73,25 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except IntegrityError as exc:
-            # Erro de integridade do banco de dados
+            # Database integrity error
             error_info = str(exc)
             constraint_name = self._extract_constraint_name(error_info)
 
             if settings.ENVIRONMENT == "production":
-                error_message = "Erro de integridade no banco de dados"
+                error_message = "Database integrity error"
                 logger.error(
-                    f"Erro de integridade: Tipo={type(exc).__name__} | "
+                    f"Integrity error: Type={type(exc).__name__} | "
                     f"Constraint={constraint_name or 'N/A'} | "
                     f"Path: {request.url.path} | "
-                    f"Cliente: {request.client.host if request.client else 'N/A'}"
+                    f"Client: {request.client.host if request.client else 'N/A'}"
                 )
             else:
                 error_message = error_info
                 logger.error(
-                    f"Erro de integridade: {error_info} | "
+                    f"Integrity error: {error_info} | "
                     f"Constraint={constraint_name or 'N/A'} | "
                     f"Path: {request.url.path} | "
-                    f"Cliente: {request.client.host if request.client else 'N/A'}"
+                    f"Client: {request.client.host if request.client else 'N/A'}"
                 )
 
             return JSONResponse(
@@ -103,34 +103,34 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except NoResultFound as exc:
-            # Recurso não encontrado via ORM
+            # Resource not found via ORM
             logger.warning(
-                f"Recurso não encontrado: {str(exc)} | "
+                f"Resource not found: {str(exc)} | "
                 f"Path: {request.url.path}"
             )
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={
-                    "detail": "Recurso não encontrado",
+                    "detail": "Resource not found",
                     "code": "RESOURCE_NOT_FOUND"
                 }
             )
 
         except SQLAlchemyError as exc:
-            # Outros erros do SQLAlchemy
+            # Other SQLAlchemy errors
             if settings.ENVIRONMENT == "production":
-                error_message = "Erro interno de banco de dados"
+                error_message = "Internal database error"
                 logger.error(
-                    f"Erro de banco de dados: Tipo={type(exc).__name__} | "
+                    f"Database error: Type={type(exc).__name__} | "
                     f"Path: {request.url.path} | "
-                    f"Cliente: {request.client.host if request.client else 'N/A'}"
+                    f"Client: {request.client.host if request.client else 'N/A'}"
                 )
             else:
                 error_message = str(exc)
                 logger.error(
-                    f"Erro de banco de dados: {str(exc)} | "
+                    f"Database error: {str(exc)} | "
                     f"Path: {request.url.path} | "
-                    f"Cliente: {request.client.host if request.client else 'N/A'}"
+                    f"Client: {request.client.host if request.client else 'N/A'}"
                 )
 
             return JSONResponse(
@@ -142,43 +142,43 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except (JWTError, ExpiredSignatureError) as exc:
-            # Erros relacionados a autenticação JWT
-            error_type = "Token expirado" if isinstance(exc, ExpiredSignatureError) else "Token inválido"
+            # JWT authentication errors
+            error_type = "Expired token" if isinstance(exc, ExpiredSignatureError) else "Invalid token"
             logger.warning(
-                f"Erro de autenticação: {error_type} | "
-                f"Tipo={type(exc).__name__} | "
+                f"Authentication error: {error_type} | "
+                f"Type={type(exc).__name__} | "
                 f"Path: {request.url.path} | "
-                f"Cliente: {request.client.host if request.client else 'N/A'}"
+                f"Client: {request.client.host if request.client else 'N/A'}"
             )
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={
-                    "detail": f"{error_type}. Por favor, faça login novamente.",
+                    "detail": f"{error_type}. Please login again.",
                     "code": "INVALID_TOKEN"
                 }
             )
 
         except PermissionError as exc:
-            # Erro de permissão (nativo do Python)
+            # Permission error (native Python)
             logger.warning(
-                f"Erro de permissão: {str(exc)} | "
+                f"Permission error: {str(exc)} | "
                 f"Path: {request.url.path} | "
-                f"Cliente: {request.client.host if request.client else 'N/A'}"
+                f"Client: {request.client.host if request.client else 'N/A'}"
             )
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={
-                    "detail": "Você não tem permissão para acessar este recurso.",
+                    "detail": "You don't have permission to access this resource.",
                     "code": "PERMISSION_DENIED"
                 }
             )
 
         except ValueError as exc:
-            # Erro de validação
+            # Validation error
             logger.warning(
-                f"Erro de validação: {str(exc)} | "
+                f"Validation error: {str(exc)} | "
                 f"Path: {request.url.path} | "
-                f"Cliente: {request.client.host if request.client else 'N/A'}"
+                f"Client: {request.client.host if request.client else 'N/A'}"
             )
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -189,21 +189,21 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
 
         except Exception as exc:
-            # Exceções não tratadas
+            # Unhandled exceptions
             if settings.ENVIRONMENT == "production":
-                error_message = "Erro interno do servidor"
+                error_message = "Internal server error"
                 logger.exception(
-                    f"Exceção não tratada: Tipo={type(exc).__name__} | "
+                    f"Unhandled exception: Type={type(exc).__name__} | "
                     f"Path: {request.url.path} | "
-                    f"Cliente: {request.client.host if request.client else 'N/A'}"
+                    f"Client: {request.client.host if request.client else 'N/A'}"
                 )
             else:
                 error_message = str(exc)
                 stack_trace = traceback.format_exc()
                 logger.exception(
-                    f"Exceção não tratada: {str(exc)} | "
+                    f"Unhandled exception: {str(exc)} | "
                     f"Path: {request.url.path} | "
-                    f"Cliente: {request.client.host if request.client else 'N/A'}\n"
+                    f"Client: {request.client.host if request.client else 'N/A'}\n"
                     f"Traceback: {stack_trace}"
                 )
             return JSONResponse(
@@ -216,17 +216,17 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
 
     def _extract_constraint_name(self, error_message: str) -> Optional[str]:
         """
-        Tenta extrair o nome da constraint de uma mensagem de erro de integridade.
+        Attempts to extract the constraint name from an integrity error message.
 
         Args:
-            error_message: A mensagem de erro completa
+            error_message: The complete error message
 
         Returns:
-            O nome da constraint ou None se não encontrado
+            The constraint name or None if not found
         """
         import re
 
-        # Padrões comuns para diferentes bancos de dados
+        # Common patterns for different databases
         patterns = [
             r'constraint "(.*?)"',
             r'CONSTRAINT (.*?) FOREIGN KEY',

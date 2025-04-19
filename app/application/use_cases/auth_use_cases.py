@@ -1,81 +1,81 @@
-# app/application/use_cases/auth_use_cases.py
+# app/application/use_cases/auth_use_cases.py (async version)
 
 """
-Serviço para autenticação de usuários.
+Service for user authentication.
 
-Este módulo implementa o serviço para operações de autenticação de usuários,
-incluindo registro, login e renovação de tokens.
+This module implements the service for authentication operations,
+including registration, login, and token renewal.
 """
 
 import logging
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Optional
 
 from app.adapters.configuration.config import settings
-from app.adapters.outbound.persistence.repositories.user_repository import user as user_repository
+from app.adapters.outbound.persistence.repositories.user_repository import user_repository
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 from app.application.dtos.user_dto import UserCreate, TokenData, UserOutput
 from app.application.ports.inbound import IUserUseCase
 from app.domain.exceptions import InvalidCredentialsException, DatabaseOperationException, \
     ResourceAlreadyExistsException
-from app.domain.services.auth_service import AuthService as DomainAuthService
+from app.domain.services.auth_service import PasswordService
 
 logger = logging.getLogger(__name__)
 
 
-class AuthService:
+class AsyncAuthService:
     """
-    Serviço para autenticação de usuários.
+    Service for user authentication.
 
-    Esta classe implementa a lógica de negócios relacionada à
-    autenticação de usuários, incluindo registro, login e refresh token.
+    This class implements the business logic related to
+    user authentication, including registration, login, and token refresh.
     """
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: AsyncSession):
         """
-        Inicializa o serviço com uma sessão de banco de dados.
+        Initialize the service with a database session.
 
         Args:
-            db_session: Sessão SQLAlchemy ativa
+            db_session: Active SQLAlchemy session
         """
         self.db = db_session
 
-    def register_user(self, user_input: UserCreate) -> UserOutput:
+    async def register_user(self, user_input: UserCreate) -> UserOutput:
         """
-        Registra um novo usuário no sistema.
+        Register a new user in the system.
 
         Args:
-            user_input: Dados do usuário a ser registrado
+            user_input: User data to register
 
         Returns:
-            Usuário registrado
+            Registered user
 
         Raises:
-            ResourceAlreadyExistsException: Se o email já estiver em uso
+            ResourceAlreadyExistsException: If the email is already in use
         """
         # Call the repository to create the user
-        user = user_repository.create_with_password(self.db, obj_in=user_input)
+        user = await user_repository.create_with_password(self.db, obj_in=user_input)
 
         # Convert to DTO for response
-        return UserOutput.from_orm(user)
+        return UserOutput.model_validate(user)
 
-    def login_user(self, user_input: UserCreate) -> TokenData:
+    async def login_user(self, user_input: UserCreate) -> TokenData:
         """
-        Autentica um usuário e gera tokens de acesso e atualização.
+        Authenticate a user and generate access and refresh tokens.
 
         Args:
-            user_input: Credenciais do usuário
+            user_input: User credentials
 
         Returns:
-            Dados do token de acesso e refresh
+            Token data with access and refresh tokens
 
         Raises:
-            InvalidCredentialsException: Se as credenciais forem inválidas
+            InvalidCredentialsException: If credentials are invalid
         """
-        # Autenticar usuário
-        user = user_repository.authenticate(
+        # Authenticate user
+        user = await user_repository.authenticate(
             self.db,
             email=user_input.email,
             password=user_input.password
@@ -86,20 +86,20 @@ class AuthService:
         refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         token_id = str(uuid.uuid4())
 
-        # Gerar tokens
-        access_token = UserAuthManager.create_access_token(
+        # Generate tokens
+        access_token = await UserAuthManager.create_access_token(
             subject=str(user.id),
             expires_delta=access_token_expires
         )
 
-        # Gerar refresh token com um identificador único
-        refresh_token = UserAuthManager.create_refresh_token(
+        # Generate refresh token with a unique identifier
+        refresh_token = await UserAuthManager.create_refresh_token(
             subject=str(user.id),
             token_id=token_id,
             expires_delta=refresh_token_expires
         )
 
-        # Calcular a data de expiração para enviar ao cliente
+        # Calculate expiration date to send to client
         expires_at = datetime.utcnow() + access_token_expires
 
         # Return token data
@@ -109,44 +109,44 @@ class AuthService:
             expires_at=expires_at
         )
 
-    def refresh_token(self, refresh_token: str) -> TokenData:
+    async def refresh_token(self, refresh_token: str) -> TokenData:
         """
-        Gera um novo token de acesso a partir de um refresh token válido.
+        Generate a new access token from a valid refresh token.
 
         Args:
-            refresh_token: Token de atualização
+            refresh_token: Refresh token
 
         Returns:
-            Novos tokens de acesso e atualização
+            New access and refresh tokens
 
         Raises:
-            InvalidCredentialsException: Se o refresh token for inválido
+            InvalidCredentialsException: If the refresh token is invalid
         """
         try:
             # Verify the refresh token
-            payload = UserAuthManager.verify_refresh_token(refresh_token)
+            payload = await UserAuthManager.verify_refresh_token(refresh_token)
             user_id = payload.get("sub")
             token_id = payload.get("jti")
 
             if not user_id or not token_id:
-                raise InvalidCredentialsException(detail="Token de atualização inválido")
+                raise InvalidCredentialsException(detail="Invalid refresh token")
 
             # Verify user exists and is active
-            user = user_repository.get(self.db, id=user_id)
+            user = await user_repository.get(self.db, id=user_id)
             if not user or not user.is_active:
-                raise InvalidCredentialsException(detail="Usuário não encontrado ou inativo")
+                raise InvalidCredentialsException(detail="User not found or inactive")
 
             # Generate new tokens
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_USER_EXPIRE_MINUTOS)
             refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
             new_token_id = str(uuid.uuid4())
 
-            new_access_token = UserAuthManager.create_access_token(
+            new_access_token = await UserAuthManager.create_access_token(
                 subject=str(user.id),
                 expires_delta=access_token_expires
             )
 
-            new_refresh_token = UserAuthManager.create_refresh_token(
+            new_refresh_token = await UserAuthManager.create_refresh_token(
                 subject=str(user.id),
                 token_id=new_token_id,
                 expires_delta=refresh_token_expires
@@ -167,8 +167,8 @@ class AuthService:
             raise
 
         except Exception as e:
-            logger.exception(f"Erro ao renovar token: {str(e)}")
+            logger.exception(f"Error refreshing token: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao processar refresh token",
+                detail="Error processing refresh token",
                 original_error=e
             )

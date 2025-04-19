@@ -1,4 +1,4 @@
-# app/adapters/outbound/security/auth_client_manager.py
+# app/adapters/outbound/security/auth_client_manager.py (async version)
 
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
@@ -14,15 +14,15 @@ DEFAULT_EXPIRES_DAYS = settings.ACCESS_TOKEN_CLIENT_EXPIRE_DIAS
 
 class ClientAuthManager:
     """
-    Gerenciador de autenticação para tokens JWT de clients (aplicações autorizadas).
+    Authentication manager for JWT tokens of clients (authorized applications).
     """
 
     crypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
     @classmethod
-    def create_client_token(cls, subject: str, expires_delta: timedelta = None) -> str:
+    async def create_client_token(cls, subject: str, expires_delta: timedelta = None) -> str:
         """
-        Cria um token JWT para o client com 'sub' igual ao subject e tipo "client".
+        Create a JWT token for the client with 'sub' equal to subject and type "client".
         """
         if expires_delta is None:
             expires_delta = timedelta(days=DEFAULT_EXPIRES_DAYS)
@@ -37,37 +37,37 @@ class ClientAuthManager:
         return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
     @classmethod
-    def verify_client_token(cls, token: str) -> dict:
+    async def verify_client_token(cls, token: str) -> dict:
         """
-        Decodifica e valida o token JWT do client.
+        Decode and validate the client's JWT token.
 
-        Retorna o payload se o token for válido e do tipo "client".
-        Lança HTTPException se inválido ou expirado.
+        Returns the payload if the token is valid and of type "client".
+        Raises HTTPException if invalid or expired.
         """
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             if payload.get("type") != "client":
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token do client inválido: tipo incorreto.",
+                    detail="Invalid client token: incorrect type.",
                 )
             return payload
         except JWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token do client inválido ou expirado.",
+                detail="Invalid or expired client token.",
             )
 
     @classmethod
-    def hash_password(cls, password: str) -> str:
+    async def hash_password(cls, password: str) -> str:
         """
-        Gera hash seguro de senha para storage no banco.
+        Generate secure password hash for storage in the database.
         """
         return cls.crypt_context.hash(password)
 
     @classmethod
-    def verify_password(cls, plain_password: str, hashed_password: str) -> bool:
+    async def verify_password(cls, plain_password: str, hashed_password: str) -> bool:
         """
-        Compara senha em texto com o hash armazenado.
+        Compare plain text password with stored hash.
         """
         return cls.crypt_context.verify(plain_password, hashed_password)

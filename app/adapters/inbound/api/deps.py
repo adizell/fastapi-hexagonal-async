@@ -1,17 +1,18 @@
-# app/adapters/inbound/api/deps.py
+# app/adapters/inbound/api/deps.py (async version)
 
 """
-Dependências para injeção nos endpoints da API.
+Dependencies for injection into API endpoints.
 
-Este módulo define as funções que fornecem dependências via
-FastAPI Depends() para autenticação, autorização e acesso ao banco de dados.
+This module defines functions that provide dependencies via
+FastAPI Depends() for authentication, authorization, and database access.
 """
 
 import logging
 from uuid import UUID
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.outbound.persistence.database import get_db
 from app.adapters.outbound.persistence.models.user_model import User
@@ -19,89 +20,95 @@ from app.adapters.outbound.persistence.models.client_model import Client
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 from app.adapters.outbound.security.auth_client_manager import ClientAuthManager
 
-# Configurar logger
+# Configure logger
 logger = logging.getLogger(__name__)
 
-# Criar scheme de bearer token para autenticação
+# Create bearer scheme for authentication
 bearer_scheme = HTTPBearer()
 
 ########################################################################
-# Gerenciamento de Sessão de Banco de Dados
+# Database Session Management
 ########################################################################
 
-# Alias de get_db para retrocompatibilidade
+# Aliases for get_db for backward compatibility
 get_session = get_db
 get_db_session = get_db
 
 
 ########################################################################
-# Autenticação via Token do Client
+# Client Token Authentication
 ########################################################################
 
-def verify_client_token(
+async def verify_client_token(
         credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
 ) -> str:
     """
-    Verifica e decodifica um token JWT de client.
+    Verify and decode a client JWT token.
 
     Args:
-        credentials: Credenciais de autorização com bearer token
+        credentials: Authorization credentials with bearer token
 
     Returns:
-        ID do client (sub) contido no token
+        Client ID (sub) contained in the token
 
     Raises:
-        HTTPException: Se o token for inválido ou expirado
+        HTTPException: If the token is invalid or expired
     """
     token = credentials.credentials
-    payload = ClientAuthManager.verify_client_token(token)
+    payload = await ClientAuthManager.verify_client_token(token)
     sub = payload.get("sub")
     if not sub:
-        logger.warning(f"Token inválido: 'sub' não encontrado em token de client")
+        logger.warning(f"Invalid token: 'sub' not found in client token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido: 'sub' não encontrado no token do client.",
+            detail="Invalid token: 'sub' not found in client token.",
         )
     return sub
 
 
-def get_current_client(
+async def get_current_client(
         credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
-        db: Session = Depends(get_db),
+        db: AsyncSession = Depends(get_db),
 ) -> Client:
     """
-    Obtém o client atual a partir do token.
+    Get the current client from the token.
 
     Args:
-        credentials: Credenciais de autorização com bearer token
-        db: Sessão do banco de dados
+        credentials: Authorization credentials with bearer token
+        db: Async database session
 
     Returns:
-        Objeto Client autenticado
+        Authenticated Client object
 
     Raises:
-        HTTPException: Se o token for inválido ou o client não existir/estiver inativo
+        HTTPException: If the token is invalid or the client doesn't exist/is inactive
     """
     try:
         token = credentials.credentials
-        payload = ClientAuthManager.verify_client_token(token)
+        payload = await ClientAuthManager.verify_client_token(token)
         client_id = payload.get("sub")
 
         try:
             client_id = int(client_id)
         except (ValueError, TypeError):
-            logger.warning(f"Token de client inválido: 'sub' não é um inteiro ({client_id})")
+            logger.warning(f"Invalid client token: 'sub' is not an integer ({client_id})")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token do client inválido: 'sub' não é um inteiro.",
+                detail="Invalid client token: 'sub' is not an integer.",
             )
 
-        client = db.query(Client).filter(Client.id == client_id, Client.is_active.is_(True)).first()
+        query = select(Client).where(
+            Client.id == client_id,
+            Client.is_active.is_(True)
+        )
+        result = await db.execute(query)
+        client = result.scalar_one_or_none()
+
         if not client:
-            logger.warning(f"Client ID {client_id} não encontrado ou inativo")
+            logger.warning(f"Client ID {client_id} not found or inactive")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Client não encontrado ou inativo.",
+                detail="Client not found or inactive.",
             )
         return client
 
@@ -109,54 +116,60 @@ def get_current_client(
         raise
 
     except Exception as e:
-        logger.error(f"Erro não esperado ao autenticar client: {str(e)}")
+        logger.error(f"Unexpected error authenticating client: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Erro de autenticação do client.",
+            detail="Client authentication error.",
         )
 
 
 ########################################################################
-# Autenticação via Token do Usuário
+# User Token Authentication
 ########################################################################
 
-def get_current_user(
+async def get_current_user(
         credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
-        db: Session = Depends(get_db),
+        db: AsyncSession = Depends(get_db),
 ) -> User:
     """
-    Obtém o usuário atual a partir do token.
+    Get the current user from the token.
 
     Args:
-        credentials: Credenciais de autorização com bearer token
-        db: Sessão do banco de dados
+        credentials: Authorization credentials with bearer token
+        db: Async database session
 
     Returns:
-        Objeto User autenticado
+        Authenticated User object
 
     Raises:
-        HTTPException: Se o token for inválido ou o usuário não existir/estiver inativo
+        HTTPException: If the token is invalid or the user doesn't exist/is inactive
     """
     try:
         token = credentials.credentials
         # Pass db to verify_access_token
-        payload = UserAuthManager.verify_access_token(token, db=db)
+        payload = await UserAuthManager.verify_access_token(token, db=db)
 
         try:
             user_id = UUID(payload.get("sub"))
         except (ValueError, TypeError):
-            logger.warning(f"Token inválido: 'sub' não é um UUID válido ({payload.get('sub')})")
+            logger.warning(f"Invalid token: 'sub' is not a valid UUID ({payload.get('sub')})")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido: 'sub' não é um UUID válido.",
+                detail="Invalid token: 'sub' is not a valid UUID.",
             )
 
-        user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+        query = select(User).where(
+            User.id == user_id,
+            User.is_active.is_(True)
+        )
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+
         if not user:
-            logger.warning(f"Usuário {user_id} não encontrado ou inativo")
+            logger.warning(f"User {user_id} not found or inactive")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Usuário não encontrado ou inativo.",
+                detail="User not found or inactive.",
             )
         return user
 
@@ -164,8 +177,8 @@ def get_current_user(
         raise
 
     except Exception as e:
-        logger.error(f"Erro não esperado ao autenticar usuário: {str(e)}")
+        logger.error(f"Unexpected error authenticating user: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Erro de autenticação do usuário.",
+            detail="User authentication error.",
         )

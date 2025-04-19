@@ -1,29 +1,31 @@
-# app/adapters/outbound/persistence/repositories/__init__.py
+# app/adapters/outbound/persistence/repositories/__init__.py (async version)
 
 """
-Módulo de CRUD (Create, Read, Update, Delete).
+CRUD (Create, Read, Update, Delete) module.
 
-Este módulo exporta classes e instâncias dos repositórios CRUD
-para as diferentes entidades do sistema, implementando o padrão Repository.
+This module exports classes and instances of the repositories CRUD
+for different system entities, implementing the Repository pattern.
 """
 
-# Importar classes CRUD
-from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
-from app.adapters.outbound.persistence.repositories.user_repository import user
-from app.adapters.outbound.persistence.repositories.client_repository import client
+# Import CRUD classes
+from app.adapters.outbound.persistence.repositories.base_repository import AsyncCRUDBase
+from app.adapters.outbound.persistence.repositories.user_repository import user_repository
+from app.adapters.outbound.persistence.repositories.client_repository import client_repository
+from app.adapters.outbound.persistence.repositories.token_repository import token_repository
 
-# Importar instâncias singleton do CRUD
-from app.adapters.outbound.persistence.repositories.user_repository import UserCRUD
-from app.adapters.outbound.persistence.repositories.client_repository import ClientCRUD
+# Import singleton CRUD instances
+from app.adapters.outbound.persistence.repositories.user_repository import AsyncUserCRUD
+from app.adapters.outbound.persistence.repositories.client_repository import AsyncClientCRUD
 
-# Exportar todas as classes e instâncias
+# Export all classes and instances
 __all__ = [
     # Classes
-    "CRUDBase",
-    "UserCRUD",
-    "ClientCRUD",
+    "AsyncCRUDBase",
+    "AsyncUserCRUD",
+    "AsyncClientCRUD",
 
-    # Instâncias
-    "user",
-    "client",
+    # Instances
+    "user_repository",
+    "client_repository",
+    "token_repository",
 ]

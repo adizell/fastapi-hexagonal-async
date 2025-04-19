@@ -1,20 +1,22 @@
-# app/application/use_cases/__init__.py
+# app/application/use_cases/__init__.py (async version)
 
 """
-Módulo de serviços da aplicação.
+Application service module.
 
-Este pacote contém os serviços que implementam a lógica de negócios
-da aplicação, organizados de acordo com os domínios funcionais.
+This package contains the application services that implement the business logic
+of the application, organized according to functional domains.
 """
 
-# Exportar classes de serviço para facilitar importações
+# Export service classes for easier imports
 from app.application.use_cases.base_use_cases import BaseService
-from app.application.use_cases.client_use_cases import ClientService
-from app.application.use_cases.user_use_cases import UserService
+from app.application.use_cases.client_use_cases import AsyncClientService
+from app.application.use_cases.user_use_cases import AsyncUserService
+from app.application.use_cases.auth_use_cases import AsyncAuthService
 
-# Exportar todos os serviços
+# Export all services
 __all__ = [
     "BaseService",
-    "ClientService",
-    "UserService",
+    "AsyncClientService",
+    "AsyncUserService",
+    "AsyncAuthService",
 ]

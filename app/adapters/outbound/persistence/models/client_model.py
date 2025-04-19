@@ -25,7 +25,6 @@ class Client(Base):
         is_active: Indica se o client está ativo
         created_at: Data e hora de criação
         updated_at: Data e hora da última atualização
-        partners: Relação com parceiros associados a este client
     """
     __tablename__ = "clients"
 

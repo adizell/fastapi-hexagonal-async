@@ -1,4 +1,4 @@
-# app/adapters/configuration/config.py
+# app/adapters/configuration/config.py (async version)
 
 from typing import Optional, List, Union
 from logging import getLevelName
@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"  # "development", "production", "testing"
 
     # Database
-    DB_DRIVER: str = "psycopg2"
+    # DB_DRIVER: str = "psycopg2"
+    DB_DRIVER: str = "asyncpg"
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str

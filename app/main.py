@@ -1,3 +1,7 @@
+# app/main.py (async version)
+
+# app/main.py (async version)
+
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -5,17 +9,48 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from fastapi.openapi.utils import get_openapi
+from contextlib import asynccontextmanager
 
 from app.adapters.configuration.config import settings
+from app.adapters.outbound.persistence.database import engine, Base
 
-# ── CONFIGURAÇÃO ÚNICA DE LOGGING ──────────────────────────────────────────────
+# ─── UNIQUE LOGGING CONFIGURATION ─────────────────────────────────────────────────
 level = logging.DEBUG if settings.DEBUG else getattr(logging, settings.LOG_LEVEL, logging.INFO)
 logging.basicConfig(
     level=level,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
 # ────────────────────────────────────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Async context manager to handle startup and shutdown events.
+    This is the newer way to handle FastAPI lifecycle events.
+    """
+    # Startup
+    logger.info("Application starting up...")
+
+    # Create database tables if they don't exist
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Start background tasks
+    app.state.cleanup_task = asyncio.create_task(periodic_cleanup())
+
+    yield
+
+    # Shutdown
+    logger.info("Application shutting down...")
+    app.state.cleanup_task.cancel()
+    try:
+        await app.state.cleanup_task
+    except asyncio.CancelledError:
+        pass
 
 
 # Create FastAPI instance
@@ -24,6 +59,7 @@ app = FastAPI(
     description="FastAPI Hexagonal Async",
     version="1.0.0",
     debug=settings.DEBUG,
+    lifespan=lifespan,
 )
 
 # Mount static files
@@ -31,18 +67,18 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Middlewares
 from app.shared.middleware import (
-    ExceptionMiddleware,
-    RequestLoggingMiddleware,
-    CSRFProtectionMiddleware,
-    RateLimitingMiddleware,
-    SecurityHeadersMiddleware
+    AsyncExceptionMiddleware,
+    AsyncRequestLoggingMiddleware,
+    AsyncCSRFProtectionMiddleware,
+    AsyncRateLimitingMiddleware,
+    AsyncSecurityHeadersMiddleware
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(CSRFProtectionMiddleware)
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(RateLimitingMiddleware)
-app.add_middleware(ExceptionMiddleware)
+app.add_middleware(AsyncSecurityHeadersMiddleware)
+app.add_middleware(AsyncCSRFProtectionMiddleware)
+app.add_middleware(AsyncRequestLoggingMiddleware)
+app.add_middleware(AsyncRateLimitingMiddleware)
+app.add_middleware(AsyncExceptionMiddleware)
 
 # Routers
 from app.adapters.inbound.api.v1.router import api_router as api_v1_router
@@ -75,7 +111,7 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # Remove schemas e respostas 422 indesejadas
+    # Remove unwanted schemas and 422 responses
     for schema in ("HTTPValidationError", "ValidationError"):
         spec.get("components", {}).get("schemas", {}).pop(schema, None)
 
@@ -90,37 +126,26 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
-# ── TAREFA DE LIMPEZA DE BLACKLIST ──────────────────────────────────────────────
-def cleanup_token_blacklist():
-    """Limpa tokens expirados da blacklist no banco."""
+# ── TOKEN BLACKLIST CLEANUP TASK ──────────────────────────────────────────────
+async def cleanup_token_blacklist():
+    """Cleans expired tokens from the blacklist in the database."""
     from app.adapters.outbound.persistence.database import get_db_context
     from app.adapters.outbound.persistence.repositories.token_repository import token_repository
 
-    with get_db_context() as db:
-        deleted = token_repository.cleanup_expired(db)
+    async with get_db_context() as db:
+        deleted = await token_repository.cleanup_expired(db)
         logger.info(f"Cleaned up {deleted} expired tokens from blacklist")
 
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Application starting up...")
-
-    # dispara a task de limpeza a cada 24h em segundo plano
-    async def periodic_cleanup():
-        # espera inicial de 24h antes da primeira execução
-        await asyncio.sleep(24 * 60 * 60)
-        while True:
-            try:
-                cleanup_token_blacklist()
-            except Exception as e:
-                logger.exception(f"Erro no cleanup_token_blacklist: {e}")
-            # aguarda mais 24h até a próxima limpeza
+async def periodic_cleanup():
+    """Background task to periodically clean up expired tokens."""
+    while True:
+        try:
+            # Wait 24 hours before first execution
             await asyncio.sleep(24 * 60 * 60)
-
-    # dispara o loop sem bloquear o startup
-    asyncio.create_task(periodic_cleanup())
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Application shutting down...")
+            await cleanup_token_blacklist()
+        except asyncio.CancelledError:
+            logger.info("Token cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.exception(f"Error in cleanup_token_blacklist: {e}")

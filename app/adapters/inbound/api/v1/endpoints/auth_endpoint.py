@@ -1,13 +1,13 @@
-# app/adapters/inbound/api/v1/endpoints/auth_endpoint.py
+# app/adapters/inbound/api/v1/endpoints/auth_endpoint.py (async version)
 
 import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases.auth_use_cases import AuthService
+from app.application.use_cases.auth_use_cases import AsyncAuthService
 from app.adapters.outbound.persistence.models.user_model import User
 from app.adapters.inbound.api.deps import get_session, get_current_client
 from app.adapters.configuration.config import settings
@@ -21,7 +21,7 @@ from app.application.dtos.user_dto import UserCreate, UserOutput, TokenData, Ref
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# esquema de bearer para extrair o token do header Authorization
+# Bearer scheme to extract token from Authorization header
 bearer_scheme = HTTPBearer()
 
 
@@ -29,20 +29,20 @@ bearer_scheme = HTTPBearer()
     "/register",
     response_model=UserOutput,
     status_code=status.HTTP_201_CREATED,
-    summary="Register User - Cria um novo usuário",
+    summary="Register User - Creates a new user",
     description="""
-    Cria um novo usuário com endereço de email. É necessário um token JWT de client.
+    Creates a new user with email address. A client JWT token is required.
 
-    A senha deve seguir os seguintes critérios:
-    - Mínimo de 8 caracteres
-    - Pelo menos uma letra maiúscula
-    - Pelo menos uma letra minúscula
-    - Pelo menos um número
-    - Pelo menos um caractere especial (como !@#$%^&*)
+    The password must meet the following criteria:
+    - Minimum of 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one number
+    - At least one special character (such as !@#$%^&*)
     """,
     responses={
         201: {
-            "description": "Usuário criado com sucesso",
+            "description": "User created successfully",
             "content": {
                 "application/json": {
                     "example": {
@@ -57,39 +57,40 @@ bearer_scheme = HTTPBearer()
             }
         },
         401: {
-            "description": "Não autenticado ou token de client inválido",
+            "description": "Not authenticated or invalid client token",
             "content": {
                 "application/json": {
                     "example": {
-                        "detail": "Token do client inválido ou expirado."
+                        "detail": "Invalid or expired client token."
                     }
                 }
             }
         },
         409: {
-            "description": "Email já está em uso",
+            "description": "Email already in use",
             "content": {
                 "application/json": {
                     "example": {
-                        "detail": "Usuário com email 'user@example.com' já existe"
+                        "detail": "User with email 'user@example.com' already exists"
                     }
                 }
             }
         }
     }
 )
-def register_user(
+async def register_user(
         user_input: UserCreate,
-        db: Session = Depends(get_session),
+        db: AsyncSession = Depends(get_session),
         _: str = Depends(get_current_client),
 ):
     try:
-        return AuthService(db).register_user(user_input)
+        service = AsyncAuthService(db)
+        return await service.register_user(user_input)
 
     except ResourceAlreadyExistsException as e:
-        # agora usamos e.detail ou str(e) para enviar a mensagem correta
+        # Use e.detail or str(e) to send the correct message
         msg = getattr(e, "detail", None) or str(e)
-        logger.warning(f"Registro duplicado: {msg}")
+        logger.warning(f"Duplicate registration: {msg}")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=msg
@@ -99,33 +100,34 @@ def register_user(
         raise
 
     except Exception as e:
-        logger.exception(f"Erro não tratado no registro: {e}")
+        logger.exception(f"Unhandled error in registration: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro interno no servidor."
+            detail="Internal server error."
         )
 
 
 @router.post(
     "/login",
     response_model=TokenData,
-    summary="Login User - Gera token de acesso",
+    summary="Login User - Generates access token",
     description=(
-            "Autentica um usuário (email/senha) e retorna um token JWT. "
-            "Tentativas de login com usuários inativos resultarão em erro. "
-            "Requer token de client válido."
+            "Authenticates a user (email/password) and returns a JWT token. "
+            "Login attempts with inactive users will result in an error. "
+            "Requires a valid client token."
     ),
 )
-def login_user(
+async def login_user(
         user_input: UserCreate,
-        db: Session = Depends(get_session),
+        db: AsyncSession = Depends(get_session),
         _: str = Depends(get_current_client),
 ):
     try:
-        return AuthService(db).login_user(user_input)
+        service = AsyncAuthService(db)
+        return await service.login_user(user_input)
 
     except InvalidCredentialsException as e:
-        logger.warning(f"Credenciais inválidas: {e.details}")
+        logger.warning(f"Invalid credentials: {e.details}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=e.details,
@@ -135,37 +137,38 @@ def login_user(
     except ResourceInactiveException:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Conta de usuário inativa. Contate o administrador.",
+            detail="Inactive user account. Contact the administrator.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     except Exception as e:
-        logger.exception(f"Erro não tratado no login: {e}")
+        logger.exception(f"Unhandled error in login: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro interno no servidor."
+            detail="Internal server error."
         )
 
 
 @router.post(
     "/refresh",
     response_model=TokenData,
-    summary="Refresh Token - Renova o token de acesso",
+    summary="Refresh Token - Renews the access token",
     description=(
-            "Gera um novo token de acesso a partir de um refresh token válido. "
-            "Requer token de client válido."
+            "Generates a new access token from a valid refresh token. "
+            "Requires a valid client token."
     ),
 )
-def refresh_token(
+async def refresh_token(
         refresh_data: RefreshTokenRequest,
-        db: Session = Depends(get_session),
+        db: AsyncSession = Depends(get_session),
         _: str = Depends(get_current_client),
 ):
     try:
-        return AuthService(db).refresh_token(refresh_data.refresh_token)
+        service = AsyncAuthService(db)
+        return await service.refresh_token(refresh_data.refresh_token)
 
     except InvalidCredentialsException as e:
-        logger.warning(f"Refresh inválido: {e.details}")
+        logger.warning(f"Invalid refresh: {e.details}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=e.details,
@@ -173,10 +176,10 @@ def refresh_token(
         )
 
     except Exception as e:
-        logger.exception(f"Erro ao renovar token: {e}")
+        logger.exception(f"Error refreshing token: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro interno no servidor."
+            detail="Internal server error."
         )
 
 
@@ -186,13 +189,13 @@ def refresh_token(
     summary="Logout - Revoke current access token",
     description="Invalidates the current access token by adding it to the blacklist.",
 )
-def logout_user(
+async def logout_user(
         credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
-        db: Session = Depends(get_session),
+        db: AsyncSession = Depends(get_session),
 ):
     token = credentials.credentials
     try:
-        # decodifica para extrair o jti e o exp
+        # Decode to extract jti and exp
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         jti = payload.get("jti")
         if not jti:
@@ -202,9 +205,9 @@ def logout_user(
             )
         expires_at = datetime.fromtimestamp(payload["exp"])
 
-        # adiciona à blacklist
+        # Add to blacklist
         from app.adapters.outbound.persistence.repositories.token_repository import token_repository
-        token_repository.add_to_blacklist(db, jti, expires_at)
+        await token_repository.add_to_blacklist(db, jti, expires_at)
 
         return {"detail": "Successfully logged out."}
 

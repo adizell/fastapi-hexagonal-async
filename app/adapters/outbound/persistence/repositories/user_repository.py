@@ -1,19 +1,20 @@
-# app/adapters/outbound/persistence/repositories/user_repository.py
+# app/adapters/outbound/persistence/repositories/user_repository.py (async version)
 
 """
-Repositório para operações com usuários.
+Repository for user operations.
 
-Este módulo implementa o repositório que realiza operações de banco de dados
-relacionadas a usuários, implementando a interface IUserRepository.
+This module implements the repository that performs database operations
+related to users, implementing the IUserRepository interface.
 """
 
 from typing import Optional, List, Dict, Any, Union
 from uuid import UUID
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.encoders import jsonable_encoder
 
-from app.adapters.outbound.persistence.repositories.base_repository import CRUDBase
+from app.adapters.outbound.persistence.repositories.base_repository import AsyncCRUDBase
 from app.adapters.outbound.persistence.models import User, AuthGroup
 from app.application.dtos.user_dto import UserCreate, UserUpdate
 from app.application.ports.outbound import IUserRepository
@@ -26,333 +27,339 @@ from app.domain.exceptions import (
 )
 
 
-class UserCRUD(CRUDBase[User, UserCreate, UserUpdate], IUserRepository):
+class AsyncUserCRUD(AsyncCRUDBase[User, UserCreate, UserUpdate], IUserRepository):
     """
-    Implementação do repositório CRUD para a entidade User.
+    Async implementation of CRUD repository for the User entity.
 
-    Estende CRUDBase com operações específicas para usuários,
-    como busca por email e verificação de credenciais.
+    Extends AsyncCRUDBase with user-specific operations,
+    such as email lookup and credential verification.
     """
 
-    def get_by_email(self, db: Session, email: str) -> Optional[User]:
+    async def get_by_email(self, db: AsyncSession, email: str) -> Optional[User]:
         """
-        Busca um usuário pelo email.
+        Find a user by email.
 
         Args:
-            db: Sessão do banco de dados
-            email: Email do usuário
+            db: Async database session
+            email: User's email
 
         Returns:
-            User encontrado ou None se não existir
+            User found or None if doesn't exist
 
         Raises:
-            DatabaseOperationException: Em caso de erro de banco de dados
+            DatabaseOperationException: In case of database error
         """
         try:
-            return db.query(User).filter(User.email == email).first()
+            query = select(User).where(User.email == email)
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao buscar usuário por email '{email}': {e}")
+            self.logger.error(f"Error fetching user by email '{email}': {e}")
             raise DatabaseOperationException(
-                detail="Erro ao buscar usuário por email",
+                detail="Error fetching user by email",
                 original_error=e
             )
 
-    def create_with_password(self, db: Session, *, obj_in: UserCreate) -> User:
+    async def create_with_password(self, db: AsyncSession, *, obj_in: UserCreate) -> User:
         """
-        Cria um novo usuário com senha segura.
+        Create a new user with secure password.
 
         Args:
-            db: Sessão do banco de dados
-            obj_in: Dados do usuário a criar
+            db: Async database session
+            obj_in: User data to create
 
         Returns:
-            Novo User criado
+            New User created
 
         Raises:
-            ResourceAlreadyExistsException: Se o email já estiver em uso
-            DatabaseOperationException: Em caso de erro de banco de dados
+            ResourceAlreadyExistsException: If the email is already in use
+            DatabaseOperationException: In case of database error
         """
-        # Importa gerenciador de senha aqui para evitar ciclo de importação
+        # Import password manager here to avoid import cycle
         from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 
         try:
-            # Verificar se o email já existe
-            if self.get_by_email(db, email=obj_in.email):
-                self.logger.warning(f"Tentativa de criar usuário com email já existente: {obj_in.email}")
+            # Check if email already exists
+            existing_user = await self.get_by_email(db, email=obj_in.email)
+            if existing_user:
+                self.logger.warning(f"Attempt to create user with existing email: {obj_in.email}")
                 raise ResourceAlreadyExistsException(
-                    detail=f"Usuário com email '{obj_in.email}' já existe"
+                    detail=f"User with email '{obj_in.email}' already exists"
                 )
 
-            # Verificar força da senha usando domain service
+            # Verify password strength using domain service
             from app.domain.services.auth_service import PasswordService
             if not PasswordService.verify_password_strength(obj_in.password):
                 raise InvalidCredentialsException(
-                    detail="A senha não atende aos requisitos mínimos de segurança."
+                    detail="Password does not meet minimum security requirements."
                 )
 
-            # Converter schema para dict e extrair senha
+            # Convert schema to dict and extract password
             obj_in_data = jsonable_encoder(obj_in)
             password = obj_in_data.pop("password")
 
-            # Criar instância do modelo e atribuir hash da senha
+            # Create model instance and assign password hash
             db_obj = User(**obj_in_data)
-            db_obj.password = UserAuthManager.hash_password(password)
+            db_obj.password = await UserAuthManager.hash_password(password)
 
-            # Adicionar ao grupo 'user' padrão
-            user_group = db.query(AuthGroup).filter_by(name="user").first()
+            # Add to default 'user' group
+            query = select(AuthGroup).where(AuthGroup.name == "user")
+            result = await db.execute(query)
+            user_group = result.scalar_one_or_none()
+
             if user_group:
                 db_obj.groups.append(user_group)
 
-            # Persistir no banco
+            # Persist to database
             db.add(db_obj)
-            db.commit()
-            db.refresh(db_obj)
-            self.logger.info(f"Usuário criado com email: {db_obj.email}")
+            await db.commit()
+            await db.refresh(db_obj)
+            self.logger.info(f"User created with email: {db_obj.email}")
             return db_obj
 
         except ResourceAlreadyExistsException:
-            # Repassa exceção de duplicidade
-            db.rollback()
+            # Pass through duplicity exception
+            await db.rollback()
             raise
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao criar usuário: {e}")
+            await db.rollback()
+            self.logger.error(f"Error creating user: {e}")
             raise DatabaseOperationException(
-                detail="Erro ao criar usuário",
+                detail="Error creating user",
                 original_error=e
             )
 
-    def update_with_password(
+    async def update_with_password(
             self,
-            db: Session,
+            db: AsyncSession,
             *,
             db_obj: User,
             obj_in: Union[UserUpdate, Dict[str, Any]]
     ) -> User:
         """
-        Atualiza um usuário, incluindo opcionalmente a senha.
+        Update a user, optionally including password.
 
         Args:
-            db: Sessão do banco de dados
-            db_obj: Objeto User a ser atualizado
-            obj_in: Dados de atualização
+            db: Async database session
+            db_obj: User object to update
+            obj_in: Update data
 
         Returns:
-            User atualizado
+            Updated User
 
         Raises:
-            ResourceAlreadyExistsException: Se o novo email já estiver em uso
-            DatabaseOperationException: Em caso de erro de banco de dados
+            ResourceAlreadyExistsException: If the new email is already in use
+            DatabaseOperationException: In case of database error
         """
         from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 
         try:
-            # Converter update data para dict
+            # Convert update data to dict
             update_data = (
                 obj_in if isinstance(obj_in, dict) else obj_in.dict(exclude_unset=True)
             )
 
-            # Verificar conflito de email
+            # Check for email conflict
             if "email" in update_data and update_data["email"] != db_obj.email:
-                existing = self.get_by_email(db, email=update_data["email"])
+                existing = await self.get_by_email(db, email=update_data["email"])
                 if existing and existing.id != db_obj.id:
                     raise ResourceAlreadyExistsException(
-                        detail=f"Email '{update_data['email']}' já está em uso"
+                        detail=f"Email '{update_data['email']}' is already in use"
                     )
 
-            # Processar senha
+            # Process password
             if "password" in update_data and update_data["password"]:
-                # Verificar força da senha usando domain service
+                # Verify password strength using domain service
                 from app.domain.services.auth_service import PasswordService
                 if PasswordService.verify_password_strength(update_data["password"]):
-                    update_data["password"] = UserAuthManager.hash_password(update_data["password"])
+                    update_data["password"] = await UserAuthManager.hash_password(update_data["password"])
                 else:
                     raise InvalidCredentialsException(
-                        detail="A senha não atende aos requisitos mínimos de segurança."
+                        detail="Password does not meet minimum security requirements."
                     )
             elif "password" in update_data:
-                # Remover senha vazia
+                # Remove empty password
                 del update_data["password"]
 
-            # Usar método genérico para update
-            return super().update(db, db_obj=db_obj, obj_in=update_data)
+            # Use generic method for update
+            return await super().update(db, db_obj=db_obj, obj_in=update_data)
 
         except ResourceAlreadyExistsException:
-            # Repassar a exceção
-            db.rollback()
+            # Pass through the exception
+            await db.rollback()
             raise
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao atualizar usuário: {e}")
+            await db.rollback()
+            self.logger.error(f"Error updating user: {e}")
             raise DatabaseOperationException(
-                detail="Erro ao atualizar usuário",
+                detail="Error updating user",
                 original_error=e
             )
 
-    def authenticate(self, db: Session, *, email: str, password: str) -> Optional[User]:
+    async def authenticate(self, db: AsyncSession, *, email: str, password: str) -> Optional[User]:
         """
-        Autentica um usuário verificando email e senha.
+        Authenticate a user by verifying email and password.
 
         Args:
-            db: Sessão do banco de dados
-            email: Email do usuário
-            password: Senha em texto plano
+            db: Async database session
+            email: User's email
+            password: Plain text password
 
         Returns:
-            User autenticado ou None
+            Authenticated User or None
 
         Raises:
-            InvalidCredentialsException: Se credenciais forem inválidas
-            DatabaseOperationException: Em caso de erro de banco de dados
+            InvalidCredentialsException: If credentials are invalid
+            DatabaseOperationException: In case of database error
         """
         from app.adapters.outbound.security.auth_user_manager import UserAuthManager
 
         try:
-            # Buscar usuário pelo email
-            user = self.get_by_email(db, email=email)
+            # Find user by email
+            user = await self.get_by_email(db, email=email)
             if not user:
-                self.logger.warning(f"Tentativa de login com email inexistente: {email}")
-                raise InvalidCredentialsException(detail="Email ou senha incorretos")
+                self.logger.warning(f"Login attempt with non-existent email: {email}")
+                raise InvalidCredentialsException(detail="Incorrect email or password")
 
-            # Verificar se usuário está ativo
+            # Check if user is active
             if not user.is_active:
-                self.logger.warning(f"Tentativa de login com usuário inativo: {email}")
-                raise InvalidCredentialsException(detail="Usuário inativo")
+                self.logger.warning(f"Login attempt with inactive user: {email}")
+                raise InvalidCredentialsException(detail="Inactive user")
 
-            # Verificar senha
-            if not UserAuthManager.verify_password(password, user.password):
-                self.logger.warning(f"Tentativa de login com senha incorreta: {email}")
-                raise InvalidCredentialsException(detail="Email ou senha incorretos")
+            # Verify password
+            if not await UserAuthManager.verify_password(password, user.password):
+                self.logger.warning(f"Login attempt with incorrect password: {email}")
+                raise InvalidCredentialsException(detail="Incorrect email or password")
 
             return user
 
         except InvalidCredentialsException:
-            # Repassar a exceção
+            # Pass through the exception
             raise
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao autenticar usuário: {e}")
+            self.logger.error(f"Error authenticating user: {e}")
             raise DatabaseOperationException(
-                detail="Erro ao autenticar usuário",
+                detail="Error authenticating user",
                 original_error=e
             )
 
-    def activate_deactivate(self, db: Session, *, user_id: UUID, is_active: bool) -> User:
+    async def activate_deactivate(self, db: AsyncSession, *, user_id: UUID, is_active: bool) -> User:
         """
-        Ativa ou desativa um usuário.
+        Activate or deactivate a user.
 
         Args:
-            db: Sessão do banco de dados
-            user_id: ID do usuário
-            is_active: Novo status (True para ativo, False para inativo)
+            db: Async database session
+            user_id: User ID
+            is_active: New status (True for active, False for inactive)
 
         Returns:
-            Usuário atualizado
+            Updated user
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            DatabaseOperationException: Em caso de erro de banco de dados
+            ResourceNotFoundException: If the user is not found
+            DatabaseOperationException: In case of database error
         """
         try:
-            # Buscar usuário
-            user = self.get(db, id=user_id)
+            # Find user
+            user = await self.get(db, id=user_id)
             if not user:
                 raise ResourceNotFoundException(
-                    detail=f"Usuário com ID {user_id} não encontrado",
+                    detail=f"User with ID {user_id} not found",
                     resource_id=user_id
                 )
 
-            # Atualizar status
+            # Update status
             user.is_active = is_active
 
-            # Salvar alterações
+            # Save changes
             db.add(user)
-            db.commit()
-            db.refresh(user)
+            await db.commit()
+            await db.refresh(user)
 
-            status_text = "ativado" if is_active else "desativado"
-            self.logger.info(f"Usuário {user.id} {status_text}")
+            status_text = "activated" if is_active else "deactivated"
+            self.logger.info(f"User {user.id} {status_text}")
             return user
 
         except ResourceNotFoundException:
-            # Repassar a exceção
-            db.rollback()
+            # Pass through the exception
+            await db.rollback()
             raise
 
         except SQLAlchemyError as e:
-            db.rollback()
-            self.logger.error(f"Erro ao alterar status do usuário: {str(e)}")
+            await db.rollback()
+            self.logger.error(f"Error changing user status: {str(e)}")
             raise DatabaseOperationException(
-                detail=f"Erro ao {'ativar' if is_active else 'desativar'} usuário",
+                detail=f"Error {'activating' if is_active else 'deactivating'} user",
                 original_error=e
             )
 
-    def get_users_with_permissions(
+    async def get_users_with_permissions(
             self,
-            db: Session,
+            db: AsyncSession,
             *,
             skip: int = 0,
             limit: int = 100,
             include_inactive: bool = False
     ) -> List[User]:
         """
-        Lista usuários com seus grupos e permissões carregados.
+        List users with their groups and permissions loaded.
 
         Args:
-            db: Sessão do banco de dados
-            skip: Registros a pular (para paginação)
-            limit: Máximo de registros a retornar
-            include_inactive: Se deve incluir usuários inativos
+            db: Async database session
+            skip: Records to skip
+            limit: Maximum records to return
+            include_inactive: Whether to include inactive users
 
         Returns:
-            Lista de usuários com grupos e permissões
+            List of users with groups and permissions
 
         Raises:
-            DatabaseOperationException: Em caso de erro de banco de dados
+            DatabaseOperationException: In case of database error
         """
         try:
-            from sqlalchemy.orm import joinedload
-            from app.adapters.outbound.persistence.models.auth_group import AuthGroup
+            from sqlalchemy.orm import selectinload
 
-            query = db.query(User)
+            query = select(User)
 
-            # Filtrar usuários ativos/inativos
+            # Filter active/inactive users
             if not include_inactive:
-                query = query.filter(User.is_active == True)
+                query = query.where(User.is_active == True)
 
-            # Carregar relacionamentos eager (grupos e permissões)
+            # Load relationships eagerly (groups and permissions)
             query = query.options(
-                joinedload(User.groups).joinedload(AuthGroup.permissions),
-                joinedload(User.permissions)
+                selectinload(User.groups).selectinload(AuthGroup.permissions),
+                selectinload(User.permissions)
             )
 
-            # Aplicar paginação
+            # Apply pagination
             query = query.offset(skip).limit(limit)
 
-            return query.all()
+            result = await db.execute(query)
+            return result.scalars().all()
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Erro ao listar usuários com permissões: {str(e)}")
+            self.logger.error(f"Error listing users with permissions: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao listar usuários com permissões",
+                detail="Error listing users with permissions",
                 original_error=e
             )
 
     def to_domain(self, db_model: User) -> DomainUser:
         """
-        Converte modelo de banco de dados para modelo de domínio.
+        Convert database model to domain model.
 
         Args:
-            db_model: Modelo ORM do usuário
+            db_model: User ORM model
 
         Returns:
-            Modelo de domínio do usuário
+            Domain model of user
         """
         from app.domain.models.user_domain_model import Group, Permission
 
-        # Converter grupos
+        # Convert groups
         groups = []
         for group_model in db_model.groups:
-            # Converter permissões do grupo
+            # Convert group permissions
             permissions = []
             for perm_model in group_model.permissions:
                 permission = Permission(
@@ -370,7 +377,7 @@ class UserCRUD(CRUDBase[User, UserCreate, UserUpdate], IUserRepository):
             )
             groups.append(group)
 
-        # Converter permissões diretas
+        # Convert direct permissions
         permissions = []
         for perm_model in db_model.permissions:
             permission = Permission(
@@ -381,7 +388,7 @@ class UserCRUD(CRUDBase[User, UserCreate, UserUpdate], IUserRepository):
             )
             permissions.append(permission)
 
-        # Criar modelo de domínio
+        # Create domain model
         return DomainUser(
             id=db_model.id,
             email=db_model.email,
@@ -394,34 +401,34 @@ class UserCRUD(CRUDBase[User, UserCreate, UserUpdate], IUserRepository):
             permissions=permissions
         )
 
-    def delete(self, db: Session, *, id: Any) -> None:
+    async def delete(self, db: AsyncSession, *, id: Any) -> None:
         """
         Delete a user by ID.
 
         Args:
-            db: Database session
+            db: Async database session
             id: ID of the user to delete
 
         Raises:
             ResourceNotFoundException: If the user is not found
         """
-        user = self.get(db, id=id)
+        user = await self.get(db, id=id)
         if not user:
             raise ResourceNotFoundException(
                 detail=f"User with ID {id} not found",
                 resource_id=id
             )
 
-        db.delete(user)
-        db.commit()
+        await db.delete(user)
+        await db.commit()
         return user
 
-    def list(self, db: Session, *, skip: int = 0, limit: int = 100, **filters) -> List[User]:
+    async def list(self, db: AsyncSession, *, skip: int = 0, limit: int = 100, **filters) -> List[User]:
         """
         List users with optional filtering.
 
         Args:
-            db: Database session
+            db: Async database session
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             **filters: Additional filters
@@ -429,8 +436,8 @@ class UserCRUD(CRUDBase[User, UserCreate, UserUpdate], IUserRepository):
         Returns:
             List of User objects
         """
-        return self.get_multi(db, skip=skip, limit=limit, **filters)
+        return await self.get_multi(db, skip=skip, limit=limit, **filters)
 
 
-# instância pública que será usada pelos use cases
-user = UserCRUD(User)
+# Public instance to be used by use cases
+user_repository = AsyncUserCRUD(User)

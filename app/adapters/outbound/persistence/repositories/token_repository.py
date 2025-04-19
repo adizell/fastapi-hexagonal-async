@@ -1,23 +1,24 @@
-# app/adapters/outbound/persistence/repositories/token_repository.py
+# app/adapters/outbound/persistence/repositories/token_repository.py (async version)
 
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.adapters.outbound.persistence.models.token_blacklist import TokenBlacklist
 from app.domain.exceptions import DatabaseOperationException
 
 
-class TokenRepository:
+class AsyncTokenRepository:
     """Repository for managing token blacklist."""
 
     @staticmethod
-    def add_to_blacklist(db: Session, jti: str, expires_at: datetime) -> TokenBlacklist:
+    async def add_to_blacklist(db: AsyncSession, jti: str, expires_at: datetime) -> TokenBlacklist:
         """
         Add a token to the blacklist.
 
         Args:
-            db: Database session
+            db: Async database session
             jti: JWT ID to blacklist
             expires_at: When the token naturally expires
 
@@ -31,30 +32,32 @@ class TokenRepository:
                 revoked_at=datetime.utcnow()
             )
             db.add(token)
-            db.commit()
-            db.refresh(token)
+            await db.commit()
+            await db.refresh(token)
             return token
         except SQLAlchemyError as e:
-            db.rollback()
+            await db.rollback()
             raise DatabaseOperationException(
                 detail="Error adding token to blacklist",
                 original_error=e
             )
 
     @staticmethod
-    def is_blacklisted(db: Session, jti: str) -> bool:
+    async def is_blacklisted(db: AsyncSession, jti: str) -> bool:
         """
         Check if a token is in the blacklist.
 
         Args:
-            db: Database session
+            db: Async database session
             jti: JWT ID to check
 
         Returns:
             True if token is blacklisted, False otherwise
         """
         try:
-            token = db.query(TokenBlacklist).filter(TokenBlacklist.jti == jti).first()
+            query = select(TokenBlacklist).where(TokenBlacklist.jti == jti)
+            result = await db.execute(query)
+            token = result.scalar_one_or_none()
             return token is not None
         except SQLAlchemyError as e:
             raise DatabaseOperationException(
@@ -63,25 +66,31 @@ class TokenRepository:
             )
 
     @staticmethod
-    def cleanup_expired(db: Session) -> int:
+    async def cleanup_expired(db: AsyncSession) -> int:
         """
         Remove expired tokens from blacklist to keep the table size manageable.
 
         Args:
-            db: Database session
+            db: Async database session
 
         Returns:
             Number of records deleted
         """
         try:
             now = datetime.utcnow()
-            result = db.query(TokenBlacklist).filter(
-                TokenBlacklist.expires_at < now
-            ).delete()
-            db.commit()
-            return result
+            query = select(TokenBlacklist).where(TokenBlacklist.expires_at < now)
+            result = await db.execute(query)
+            expired_tokens = result.scalars().all()
+
+            count = 0
+            for token in expired_tokens:
+                await db.delete(token)
+                count += 1
+
+            await db.commit()
+            return count
         except SQLAlchemyError as e:
-            db.rollback()
+            await db.rollback()
             raise DatabaseOperationException(
                 detail="Error cleaning up expired blacklisted tokens",
                 original_error=e
@@ -89,4 +98,4 @@ class TokenRepository:
 
 
 # Create instance
-token_repository = TokenRepository()
+token_repository = AsyncTokenRepository()

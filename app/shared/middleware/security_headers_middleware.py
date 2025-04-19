@@ -1,10 +1,10 @@
-# app/shared/middleware/security_headers_middleware.py
+# app/shared/middleware/security_headers_middleware.py (async version)
 
 """
-Middleware para adicionar cabeçalhos de segurança HTTP.
+Middleware for adding HTTP security headers.
 
-Este módulo implementa um middleware que adiciona cabeçalhos de segurança
-às respostas HTTP para proteger contra vulnerabilidades web comuns.
+This module implements a middleware that adds security headers
+to HTTP responses to protect against common web vulnerabilities.
 """
 
 import logging
@@ -12,45 +12,45 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.adapters.configuration.config import settings
 
-# Configurar logger
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+class AsyncSecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
-    Middleware que adiciona cabeçalhos de segurança a todas as respostas HTTP.
+    Middleware that adds security headers to all HTTP responses.
 
-    Os cabeçalhos incluídos ajudam a proteger contra:
+    The headers included help protect against:
     - Cross-site scripting (XSS)
     - Clickjacking
     - MIME-type sniffing
-    - Vazamento de informações
-    - Transport Layer Security (forçar HTTPS)
+    - Information leakage
+    - Transport Layer Security (forcing HTTPS)
     """
 
     async def dispatch(self, request: Request, call_next):
-        # Processa a requisição
+        # Process the request
         response = await call_next(request)
 
-        # Verifica se a rota é relacionada à documentação, templates do cliente, ou recursos estáticos
+        # Check if the route is related to documentation, client templates, or static resources
         path = request.url.path
         is_docs_route = path in ["/", "/docs", "/redoc", "/openapi.json"] or path.startswith(
             "/docs/") or path.startswith("/redoc/")
         is_client_template = path in ["/create-url/client", "/create-jwt/client", "/update-url/client"]
         is_static_resource = path.startswith(("/static/", "/css/", "/js/", "/favicon.ico"))
 
-        # Não aplicar políticas CSP restritivas para rotas de documentação ou templates de cliente
+        # Don't apply restrictive CSP policies for documentation or client templates
         if not (is_docs_route or is_client_template or is_static_resource):
-            # Ajuda a prevenir ataques XSS
+            # Helps prevent XSS attacks
             response.headers["X-XSS-Protection"] = "1; mode=block"
 
-            # Previne MIME-type sniffing
+            # Prevents MIME-type sniffing
             response.headers["X-Content-Type-Options"] = "nosniff"
 
-            # Controla em que contexto o site pode ser incorporado (previne clickjacking)
+            # Controls in which context the site can be embedded (prevents clickjacking)
             response.headers["X-Frame-Options"] = "SAMEORIGIN"
 
-            # CSP restritivo para rotas da API
+            # Restrictive CSP for API routes
             csp_value = (
                 "default-src 'self'; "
                 "script-src 'self'; "
@@ -64,10 +64,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
             response.headers["Content-Security-Policy"] = csp_value
 
-            # Controle de referência - limita informações enviadas a outros sites
+            # Referrer control - limits information sent to other sites
             response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-            # Feature-Policy/Permissions-Policy - controle rígido sobre funcionalidades do navegador
+            # Feature-Policy/Permissions-Policy - strict control over browser features
             permissions_policy = (
                 "accelerometer=(), "
                 "camera=(), "
@@ -81,23 +81,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Permissions-Policy"] = permissions_policy
             response.headers["Feature-Policy"] = permissions_policy
 
-            # Cache-Control para rotas da API
+            # Cache-Control for API routes
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
 
-        # Cabeçalhos seguros para todas as rotas, incluindo documentação
+        # Secure headers for all routes, including documentation
 
-        # Não expor informações sensíveis no cabeçalho Server
+        # Don't expose sensitive information in the Server header
         if "Server" in response.headers:
             response.headers["Server"] = "RGA API"
 
-        # Só habilita HSTS se a aplicação estiver configurada para usar HTTPS
+        # Only enable HSTS if the application is configured to use HTTPS
         if settings.ENVIRONMENT == "production" and getattr(settings, "USE_HTTPS", False):
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
-        # Configurações de cache para assets estáticos
+        # Cache settings for static assets
         if path.startswith(("/static/", "/favicon.ico")):
-            response.headers["Cache-Control"] = "public, max-age=3600"  # Cache por 1 hora
+            response.headers["Cache-Control"] = "public, max-age=3600"  # Cache for 1 hour
 
         return response

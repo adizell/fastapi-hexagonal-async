@@ -1,10 +1,10 @@
-# app/shared/middleware/rate_limiting_middleware.py
+# app/shared/middleware/rate_limiting_middleware.py (async version)
 
 """
-Middleware para limitação de taxa de requisições (rate limiting).
+Middleware for request rate limiting.
 
-Este módulo implementa proteção contra excesso de requisições de um mesmo cliente,
-ajudando a prevenir ataques de força bruta e DoS.
+This module implements protection against excessive requests from the same client,
+helping to prevent brute force attacks and DoS.
 """
 
 import time
@@ -15,30 +15,30 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-# Configurar logger
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-class RateLimiter:
+class AsyncRateLimiter:
     """
-    Implementação robusta de rate limiting usando armazenamento em memória.
-    Limita requisições por IP com diferentes limites para rotas padrão e rotas sensíveis.
+    Robust in-memory rate limiting implementation.
+    Limits requests by IP with different limits for default and sensitive routes.
     """
 
     def __init__(self):
-        # Estrutura: {ip: [(timestamp1, path1), (timestamp2, path2), ...]}
+        # Structure: {ip: [(timestamp1, path1), (timestamp2, path2), ...]}
         self.requests: Dict[str, List[Tuple[float, str]]] = {}
 
-        # Período de tempo em segundos para limites (janela de 60 segundos)
+        # Time period in seconds for limits (60-second window)
         self.window_time = 60
 
-        # Limite de requisições padrão por minuto por IP
+        # Default request limit per minute per IP
         self.default_limit = 100
 
-        # Limite para rotas sensíveis como login, registro, etc.
+        # Limit for sensitive routes like login, registration, etc.
         self.sensitive_limit = 10
 
-        # Conjunto de rotas consideradas sensíveis
+        # Set of routes considered sensitive
         self.sensitive_routes: Set[str] = {
             "/user/login",
             "/user/register",
@@ -47,61 +47,61 @@ class RateLimiter:
             "/update-url/client"
         }
 
-        # Cache de IPs bloqueados temporariamente (com tempo de expiração)
-        # Estrutura: {ip: timestamp_de_liberação}
+        # Cache of temporarily blocked IPs (with expiration time)
+        # Structure: {ip: release_timestamp}
         self.blocked_ips: Dict[str, float] = {}
 
-        # Duração do bloqueio em segundos (5 minutos)
+        # Block duration in seconds (5 minutes)
         self.block_duration = 300
 
-        # Cache para armazenar falhas de autenticação por IP
-        # Estrutura: {ip: [(timestamp1, path1), ...]}
+        # Cache to store authentication failures by IP
+        # Structure: {ip: [(timestamp1, path1), ...]}
         self.auth_failures: Dict[str, List[Tuple[float, str]]] = {}
 
-        # Limite de falhas de autenticação antes de aumentar o bloqueio
+        # Authentication failure limit before increasing the block
         self.auth_failure_limit = 5
 
-        # Duração do bloqueio por falha de autenticação (10 minutos)
+        # Block duration for authentication failure (10 minutes)
         self.auth_block_duration = 600
 
     def _clean_old_requests(self, ip: str):
-        """Remove requisições antigas fora da janela de tempo."""
+        """Remove old requests outside the time window."""
         if ip not in self.requests:
             return
 
         current_time = time.time()
         cutoff_time = current_time - self.window_time
 
-        # Mantém apenas as requisições dentro da janela de tempo
+        # Keep only requests within the time window
         self.requests[ip] = [
             (timestamp, path) for timestamp, path in self.requests[ip]
             if timestamp > cutoff_time
         ]
 
-        # Remove o IP do dicionário se não tiver mais requisições
+        # Remove the IP from the dictionary if no more requests
         if not self.requests[ip]:
             del self.requests[ip]
 
     def _clean_old_auth_failures(self, ip: str):
-        """Remove falhas de autenticação antigas fora da janela de tempo."""
+        """Remove old authentication failures outside the time window."""
         if ip not in self.auth_failures:
             return
 
         current_time = time.time()
-        cutoff_time = current_time - (self.window_time * 5)  # Janela de 5 minutos para falhas de autenticação
+        cutoff_time = current_time - (self.window_time * 5)  # 5-minute window for auth failures
 
-        # Mantém apenas as falhas dentro da janela de tempo
+        # Keep only failures within the time window
         self.auth_failures[ip] = [
             (timestamp, path) for timestamp, path in self.auth_failures[ip]
             if timestamp > cutoff_time
         ]
 
-        # Remove o IP do dicionário se não tiver mais falhas
+        # Remove the IP from the dictionary if no more failures
         if not self.auth_failures[ip]:
             del self.auth_failures[ip]
 
     def _clean_expired_blocks(self):
-        """Remove IPs cujo bloqueio já expirou."""
+        """Remove IPs whose block has expired."""
         current_time = time.time()
         expired_ips = [ip for ip, block_until in self.blocked_ips.items()
                        if block_until <= current_time]
@@ -110,17 +110,17 @@ class RateLimiter:
             del self.blocked_ips[ip]
 
     def is_blocked(self, ip: str) -> bool:
-        """Verifica se um IP está bloqueado temporariamente."""
+        """Check if an IP is temporarily blocked."""
         self._clean_expired_blocks()
         return ip in self.blocked_ips
 
-    def add_auth_failure(self, ip: str, path: str):
+    async def add_auth_failure(self, ip: str, path: str):
         """
-        Registra uma falha de autenticação para um IP.
+        Register an authentication failure for an IP.
 
         Args:
-            ip: O endereço IP do cliente
-            path: O caminho da requisição
+            ip: Client IP address
+            path: Request path
         """
         if ip not in self.auth_failures:
             self.auth_failures[ip] = []
@@ -128,123 +128,123 @@ class RateLimiter:
         current_time = time.time()
         self.auth_failures[ip].append((current_time, path))
 
-        # Limpa falhas antigas
+        # Clean old failures
         self._clean_old_auth_failures(ip)
 
-        # Verifica se excedeu o limite de falhas
+        # Check if exceeded the failure limit
         if len(self.auth_failures[ip]) >= self.auth_failure_limit:
-            self.block_ip(ip, is_auth_failure=True)
+            await self.block_ip(ip, is_auth_failure=True)
 
-    def block_ip(self, ip: str, is_auth_failure: bool = False):
+    async def block_ip(self, ip: str, is_auth_failure: bool = False):
         """
-        Bloqueia um IP temporariamente.
+        Temporarily block an IP.
 
         Args:
-            ip: O endereço IP do cliente
-            is_auth_failure: Se o bloqueio é devido a falhas de autenticação
+            ip: Client IP address
+            is_auth_failure: If the block is due to authentication failures
         """
         duration = self.auth_block_duration if is_auth_failure else self.block_duration
         block_until = time.time() + duration
         self.blocked_ips[ip] = block_until
 
-        block_type = "falhas de autenticação" if is_auth_failure else "excesso de requisições"
+        block_type = "authentication failures" if is_auth_failure else "excessive requests"
         logger.warning(
-            f"IP {ip} bloqueado por {block_type} até {datetime.fromtimestamp(block_until).strftime('%Y-%m-%d %H:%M:%S')}"
+            f"IP {ip} blocked due to {block_type} until {datetime.fromtimestamp(block_until).strftime('%Y-%m-%d %H:%M:%S')}"
         )
 
-    def is_rate_limited(self, ip: str, path: str) -> Tuple[bool, Optional[int]]:
+    async def is_rate_limited(self, ip: str, path: str) -> Tuple[bool, Optional[int]]:
         """
-        Verifica se um IP excedeu o limite de requisições.
+        Check if an IP has exceeded the request limit.
 
         Args:
-            ip: O endereço IP do cliente
-            path: O caminho da requisição
+            ip: Client IP address
+            path: Request path
 
         Returns:
-            Tupla (está_limitado, requisições_restantes)
-            - está_limitado: True se o IP excedeu o limite
-            - requisições_restantes: Número de requisições restantes ou None se limitado
+            Tuple (is_limited, remaining_requests)
+            - is_limited: True if the IP exceeded the limit
+            - remaining_requests: Number of remaining requests or None if limited
         """
-        # Verifica se já está bloqueado
+        # Check if already blocked
         if self.is_blocked(ip):
             return True, None
 
-        # Limpa requisições antigas
+        # Clean old requests
         self._clean_old_requests(ip)
 
-        # Inicializa lista de requisições se for o primeiro acesso
+        # Initialize requests list if first access
         if ip not in self.requests:
             self.requests[ip] = []
 
-        # Determina se é uma rota sensível
+        # Determine if it's a sensitive route
         is_sensitive = any(path.startswith(route) for route in self.sensitive_routes)
         limit = self.sensitive_limit if is_sensitive else self.default_limit
 
-        # Conta o número de requisições para este tipo de rota
+        # Count the number of requests for this type of route
         if is_sensitive:
             count = sum(1 for _, req_path in self.requests[ip]
                         if any(req_path.startswith(route) for route in self.sensitive_routes))
         else:
             count = len(self.requests[ip])
 
-        # Verifica se excedeu o limite
+        # Check if exceeded the limit
         if count >= limit:
-            # Se for uma rota sensível e excedeu muito o limite, bloqueia o IP
+            # If a sensitive route and exceeded limit by a lot, block the IP
             if is_sensitive and count >= limit * 2:
-                self.block_ip(ip)
+                await self.block_ip(ip)
             return True, 0
 
-        # Adiciona a requisição atual
+        # Add the current request
         current_time = time.time()
         self.requests[ip].append((current_time, path))
 
-        # Retorna quantas requisições ainda restam
+        # Return how many requests still remain
         remaining = limit - count - 1
         return False, remaining
 
 
-# Instância global do limitador
-rate_limiter = RateLimiter()
+# Global rate limiter instance
+async_rate_limiter = AsyncRateLimiter()
 
 
-class RateLimitingMiddleware(BaseHTTPMiddleware):
+class AsyncRateLimitingMiddleware(BaseHTTPMiddleware):
     """
-    Middleware que limita o número de requisições por IP.
+    Middleware that limits the number of requests by IP.
     """
 
     async def dispatch(self, request: Request, call_next):
-        # Obtém o IP do cliente
+        # Get the client IP
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
 
-        # Ignora rotas de documentação e estáticas
+        # Ignore documentation and static routes
         if path in ["/", "/docs", "/redoc", "/openapi.json"] or path.startswith("/static/"):
             return await call_next(request)
 
-        # Verifica rate limiting
-        is_limited, remaining = rate_limiter.is_rate_limited(client_ip, path)
+        # Check rate limiting
+        is_limited, remaining = await async_rate_limiter.is_rate_limited(client_ip, path)
 
         if is_limited:
-            logger.warning(f"Rate limit excedido para IP: {client_ip} no path: {path}")
+            logger.warning(f"Rate limit exceeded for IP: {client_ip} on path: {path}")
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={
-                    "detail": "Muitas requisições. Tente novamente mais tarde.",
+                    "detail": "Too many requests. Try again later.",
                     "code": "RATE_LIMIT_EXCEEDED"
                 },
-                headers={"Retry-After": "60"}  # Sugere tentar novamente após 60 segundos
+                headers={"Retry-After": "60"}  # Suggest trying again after 60 seconds
             )
 
-        # Processa a requisição
+        # Process the request
         response = await call_next(request)
 
-        # Adiciona cabeçalhos informativos de rate limiting
+        # Add informative rate limiting headers
         if remaining is not None:
             response.headers["X-RateLimit-Remaining"] = str(remaining)
 
-        # Captura falhas de autenticação (401) para rotas sensíveis
+        # Capture authentication failures (401) for sensitive routes
         if (response.status_code == 401 and
-                any(path.startswith(route) for route in rate_limiter.sensitive_routes)):
-            rate_limiter.add_auth_failure(client_ip, path)
+                any(path.startswith(route) for route in async_rate_limiter.sensitive_routes)):
+            await async_rate_limiter.add_auth_failure(client_ip, path)
 
         return response

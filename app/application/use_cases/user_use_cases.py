@@ -1,23 +1,24 @@
-# app/application/use_cases/user_use_cases.py
+# app/application/use_cases/user_use_cases.py (async version)
 
 """
-Serviço para gerenciamento de usuários.
+Service for user management.
 
-Este módulo implementa o serviço para operações com usuários,
-incluindo registro, autenticação, atualização e gerenciamento de perfis.
+This module implements the service for user operations,
+including registration, authentication, updates, and profile management.
 """
 
 from uuid import UUID
 from datetime import datetime, timedelta
 import logging
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi_pagination import Params
-from fastapi_pagination.ext.sqlalchemy import paginate as sqlalchemy_paginate
+from fastapi_pagination.ext.async_sqlalchemy import paginate
 
 from app.adapters.outbound.persistence.models import User
 from app.adapters.outbound.persistence.models import AuthGroup
 from app.application.dtos.user_dto import UserCreate, UserUpdate, UserSelfUpdate, TokenData
 from app.adapters.outbound.security.auth_user_manager import UserAuthManager
+from app.adapters.outbound.persistence.repositories.user_repository import user_repository
 from app.domain.exceptions import (
     ResourceNotFoundException,
     ResourceAlreadyExistsException,
@@ -28,291 +29,304 @@ from app.domain.exceptions import (
 )
 from app.domain.services.user_service import UserPermissionService
 
-# Configurar logger
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-class UserService:
+class AsyncUserService:
     """
-    Serviço para gerenciamento de usuários.
+    Service for user management.
 
-    Esta classe implementa a lógica de negócios relacionada à
-    manipulação de usuários, incluindo autenticação, autorização e gerenciamento.
+    This class implements the business logic related to
+    user management, including authentication, authorization, and management.
     """
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: AsyncSession):
         """
-        Inicializa o serviço com uma sessão de banco de dados.
+        Initialize the service with a database session.
 
         Args:
-            db_session: Sessão SQLAlchemy ativa
+            db_session: Active AsyncSession
         """
         self.db = db_session
 
-    def _get_user_by_id(self, user_id: UUID) -> User:
+    async def _get_user_by_id(self, user_id: UUID) -> User:
         """
-        Obtém um usuário pelo ID ou lança uma exceção se não existir.
+        Get a user by ID or raise an exception if it doesn't exist.
 
         Args:
-            user_id: UUID do usuário
+            user_id: User UUID
 
         Returns:
-            Objeto User
+            User object
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            ResourceInactiveException: Se o usuário estiver inativo
+            ResourceNotFoundException: If the user is not found
+            ResourceInactiveException: If the user is inactive
         """
-        user = self.db.query(User).filter(User.id == user_id).first()
+        user = await user_repository.get(self.db, id=user_id)
         if not user:
-            logger.warning(f"Usuário não encontrado: ID {user_id}")
+            logger.warning(f"User not found: ID {user_id}")
             raise ResourceNotFoundException(
-                detail="Usuário não encontrado",
+                detail="User not found",
                 resource_id=user_id
             )
 
-        # Adicionar verificação de status ativo
+        # Check active status
         if not user.is_active:
-            logger.warning(f"Tentativa de acessar usuário inativo: ID {user_id}")
+            logger.warning(f"Attempt to access inactive user: ID {user_id}")
             raise ResourceInactiveException(
-                detail="Este usuário está inativo e não está disponível",
+                detail="This user is inactive and not available",
                 resource_id=user_id
             )
 
         return user
 
-    def _get_user_by_email(self, email: str) -> User:
+    async def _get_user_by_email(self, email: str) -> User:
         """
-        Obtém um usuário pelo email ou lança uma exceção se não existir.
+        Get a user by email or raise an exception if it doesn't exist.
 
         Args:
-            email: Email do usuário
+            email: User's email
 
         Returns:
-            Objeto User
+            User object
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            ResourceInactiveException: Se o usuário estiver inativo
+            ResourceNotFoundException: If the user is not found
+            ResourceInactiveException: If the user is inactive
         """
-        user = self.db.query(User).filter(User.email == email).first()
+        user = await user_repository.get_by_email(self.db, email=email)
         if not user:
-            logger.warning(f"Usuário não encontrado: email {email}")
+            logger.warning(f"User not found: email {email}")
             raise ResourceNotFoundException(
-                detail="Usuário não encontrado com este email"
+                detail="User not found with this email"
             )
 
-        # Verificação de status ativo
+        # Check active status
         if not user.is_active:
-            logger.warning(f"Tentativa de acessar usuário inativo: email {email}")
+            logger.warning(f"Attempt to access inactive user: email {email}")
             raise ResourceInactiveException(
-                detail="Este usuário está inativo e não está disponível"
+                detail="This user is inactive and not available"
             )
 
         return user
 
-    def _get_group_by_name(self, name: str) -> AuthGroup:
+    async def _get_group_by_name(self, name: str) -> AuthGroup:
         """
-        Retorna o grupo de permissões pelo nome.
+        Return the permission group by name.
 
         Args:
-            name: Nome do grupo
+            name: Group name
 
         Returns:
-            Objeto AuthGroup
+            AuthGroup object
 
         Raises:
-            DatabaseOperationException: Se o grupo não for encontrado
+            DatabaseOperationException: If the group is not found
         """
-        group = self.db.query(AuthGroup).filter(AuthGroup.name == name).first()
+        from sqlalchemy.future import select
+        query = select(AuthGroup).where(AuthGroup.name == name)
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+
         if not group:
-            error_msg = f"Grupo '{name}' não encontrado. Verifique a carga inicial (seed)."
+            error_msg = f"Group '{name}' not found. Check the initial seed."
             logger.error(error_msg)
             raise DatabaseOperationException(detail=error_msg)
         return group
 
-    def list_users(self, current_user: User, params: Params, order: str = "desc"):
+    async def list_users(self, current_user: User, params: Params, order: str = "desc"):
         """
-        Lista paginada de usuários ordenados por data de criação.
+        Paginated list of users sorted by creation date.
 
         Args:
-            current_user: Usuário autenticado
-            params: Parâmetros de paginação
-            order: Direção de ordenação (asc|desc)
+            current_user: Authenticated user
+            params: Pagination parameters
+            order: Sort direction (asc|desc)
 
         Returns:
-            Lista paginada de usuários
+            Paginated list of users
 
         Raises:
-            PermissionDeniedException: Se o usuário não for superusuário
-            DatabaseOperationException: Se houver erro no processo
+            PermissionDeniedException: If the user is not a superuser
+            DatabaseOperationException: If there's an error in the process
         """
         try:
-            # Verificar permissão usando domínio service
+            # Check permission using domain service
             if not current_user.is_superuser:
-                logger.warning(f"Usuário sem permissão tentou listar todos os usuários: {current_user.email}")
+                logger.warning(f"Non-privileged user attempted to list all users: {current_user.email}")
                 raise PermissionDeniedException(
-                    detail="Apenas superusuários podem listar todos os usuários."
+                    detail="Only superusers can list all users."
                 )
 
-            query = self.db.query(User)
+            from sqlalchemy.future import select
+            query = select(User)
             query = query.order_by(User.created_at.desc() if order == "desc" else User.created_at.asc())
 
-            logger.info(f"Listagem de usuários realizada por: {current_user.email}")
-            return sqlalchemy_paginate(query, params)
+            logger.info(f"User listing performed by: {current_user.email}")
+            return await paginate(self.db, query, params)
 
         except PermissionDeniedException:
-            # Repassa exceção já formatada
+            # Pass through already formatted exception
             raise
 
         except Exception as e:
-            logger.exception(f"Erro ao listar usuários: {str(e)}")
+            logger.exception(f"Error listing users: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao listar usuários",
+                detail="Error listing users",
                 original_error=e
             )
 
-    def update_self(self, user_id: UUID, data: UserSelfUpdate) -> User:
+    async def update_self(self, user_id: UUID, data: UserSelfUpdate) -> User:
         """
-        Permite que um usuário atualize seu próprio perfil.
+        Allow a user to update their own profile.
 
         Args:
-            user_id: ID do usuário
-            data: Dados a serem atualizados
+            user_id: User ID
+            data: Data to be updated
 
         Returns:
-            Usuário atualizado
+            Updated user
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            ResourceInactiveException: Se o usuário estiver inativo
-            InvalidCredentialsException: Se a senha atual for incorreta
-            ResourceAlreadyExistsException: Se o novo email já estiver em uso
-            DatabaseOperationException: Se houver erro no processo
+            ResourceNotFoundException: If the user is not found
+            ResourceInactiveException: If the user is inactive
+            InvalidCredentialsException: If the current password is incorrect
+            ResourceAlreadyExistsException: If the new email is already in use
+            DatabaseOperationException: If there's an error in the process
         """
         try:
-            # Usar o método que já verifica o status ativo
-            user = self._get_user_by_id(user_id)
+            # Use the method that already checks active status
+            user = await self._get_user_by_id(user_id)
 
-            # Se tentar alterar senha, verificar senha atual
+            # If trying to change password, check current password
             if data.password and not data.current_password:
-                logger.warning(f"Tentativa de alterar senha sem fornecer senha atual: {user.email}")
+                logger.warning(f"Attempt to change password without providing current password: {user.email}")
                 raise InvalidCredentialsException(
-                    detail="Para alterar a senha, é necessário fornecer a senha atual."
+                    detail="To change the password, you must provide the current password."
                 )
 
-            # Verificar senha atual se for fornecida
+            # Verify current password if provided
             if data.current_password:
-                if not UserAuthManager.verify_password(data.current_password, user.password):
-                    logger.warning(f"Senha atual incorreta ao atualizar usuário: {user.email}")
+                if not await UserAuthManager.verify_password(data.current_password, user.password):
+                    logger.warning(f"Incorrect current password when updating user: {user.email}")
                     raise InvalidCredentialsException(
-                        detail="Senha atual incorreta."
+                        detail="Current password incorrect."
                     )
 
-            # Atualizar campos
+            # Update fields
             if data.email is not None and data.email != user.email:
-                # Verificar se novo email já existe
-                existing = self.db.query(User).filter(
+                # Check if new email already exists
+                from sqlalchemy.future import select
+                query = select(User).where(
                     User.email == data.email,
                     User.id != user_id
-                ).first()
+                )
+                result = await self.db.execute(query)
+                existing = result.scalar_one_or_none()
 
                 if existing:
-                    logger.warning(f"Email já em uso ao atualizar usuário: {data.email}")
+                    logger.warning(f"Email already in use when updating user: {data.email}")
                     raise ResourceAlreadyExistsException(
-                        detail="Este email já está em uso."
+                        detail="This email is already in use."
                     )
 
                 user.email = data.email
 
             if data.password is not None:
-                # Verificar força da senha usando domain service antes de definir
+                # Verify password strength using domain service
                 from app.domain.services.auth_service import PasswordService
                 if PasswordService.verify_password_strength(data.password):
-                    user.password = UserAuthManager.hash_password(data.password)
+                    user.password = await UserAuthManager.hash_password(data.password)
                 else:
                     raise InvalidCredentialsException(
-                        detail="A senha não atende aos requisitos mínimos de segurança."
+                        detail="The password does not meet the minimum security requirements."
                     )
 
-            self.db.commit()
-            self.db.refresh(user)
+            await self.db.commit()
+            await self.db.refresh(user)
 
-            logger.info(f"Usuário atualizou seus dados: {user.email}")
+            logger.info(f"User updated their data: {user.email}")
             return user
 
         except (ResourceNotFoundException, InvalidCredentialsException, ResourceAlreadyExistsException):
-            # Repassa exceções já formatadas
-            self.db.rollback()
+            # Pass through already formatted exceptions
+            await self.db.rollback()
             raise
 
         except Exception as e:
-            self.db.rollback()
-            logger.exception(f"Erro ao atualizar usuário: {str(e)}")
+            await self.db.rollback()
+            logger.exception(f"Error updating user: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao atualizar o usuário.",
+                detail="Error updating the user.",
                 original_error=e
             )
 
-    def update_user(self, user_id: UUID, data: UserUpdate) -> User:
+    async def update_user(self, user_id: UUID, data: UserUpdate) -> User:
         """
-        Permite que um administrador atualize qualquer usuário.
+        Allow an administrator to update any user.
 
         Args:
-            user_id: ID do usuário
-            data: Dados a serem atualizados
+            user_id: User ID
+            data: Data to be updated
 
         Returns:
-            Usuário atualizado
+            Updated user
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            ResourceInactiveException: Se o usuário estiver inativo (exceto se estiver sendo reativado)
-            ResourceAlreadyExistsException: Se o novo email já estiver em uso
-            DatabaseOperationException: Se houver erro no processo
+            ResourceNotFoundException: If the user is not found
+            ResourceInactiveException: If the user is inactive (except if being reactivated)
+            ResourceAlreadyExistsException: If the new email is already in use
+            DatabaseOperationException: If there's an error in the process
         """
         try:
-            user = self.db.query(User).filter(User.id == user_id).first()
+            from sqlalchemy.future import select
+            query = select(User).where(User.id == user_id)
+            result = await self.db.execute(query)
+            user = result.scalar_one_or_none()
 
             if not user:
-                logger.warning(f"Tentativa de atualizar usuário inexistente: {user_id}")
+                logger.warning(f"Attempt to update non-existent user: {user_id}")
                 raise ResourceNotFoundException(
-                    detail="Usuário não encontrado",
+                    detail="User not found",
                     resource_id=user_id
                 )
 
-            # Verificar status ativo, EXCETO se a atualização está reativando o usuário
+            # Check active status, EXCEPT if the update is reactivating the user
             is_reactivating = data.is_active is True and not user.is_active
             if not user.is_active and not is_reactivating:
-                logger.warning(f"Tentativa de atualizar usuário inativo: {user_id}")
+                logger.warning(f"Attempt to update inactive user: {user_id}")
                 raise ResourceInactiveException(
-                    detail="Este usuário está inativo. Use a operação de reativação primeiro.",
+                    detail="This user is inactive. Use the reactivation operation first.",
                     resource_id=user_id
                 )
 
-            # Verificar se novo email já existe
+            # Check if new email already exists
             if data.email and data.email != user.email:
-                existing = self.db.query(User).filter(
+                query = select(User).where(
                     User.email == data.email,
                     User.id != user_id
-                ).first()
+                )
+                result = await self.db.execute(query)
+                existing = result.scalar_one_or_none()
 
                 if existing:
-                    logger.warning(f"Email já em uso ao atualizar usuário: {data.email}")
+                    logger.warning(f"Email already in use when updating user: {data.email}")
                     raise ResourceAlreadyExistsException(
-                        detail="Este email já está em uso."
+                        detail="This email is already in use."
                     )
 
                 user.email = data.email
 
             if data.password is not None:
-                # Verificar força da senha usando domain service antes de definir
+                # Verify password strength using domain service
                 from app.domain.services.auth_service import PasswordService
                 if PasswordService.verify_password_strength(data.password):
-                    user.password = UserAuthManager.hash_password(data.password)
+                    user.password = await UserAuthManager.hash_password(data.password)
                 else:
                     raise InvalidCredentialsException(
-                        detail="A senha não atende aos requisitos mínimos de segurança."
+                        detail="The password does not meet the minimum security requirements."
                     )
 
             if data.is_active is not None:
@@ -321,148 +335,151 @@ class UserService:
             if data.is_superuser is not None:
                 user.is_superuser = data.is_superuser
 
-            self.db.commit()
-            self.db.refresh(user)
+            await self.db.commit()
+            await self.db.refresh(user)
 
-            logger.info(f"Administrador atualizou dados do usuário: {user.id}")
+            logger.info(f"Administrator updated user data: {user.id}")
             return user
 
         except (ResourceNotFoundException, ResourceAlreadyExistsException, ResourceInactiveException):
-            # Repassa exceções já formatadas
-            self.db.rollback()
+            # Pass through already formatted exceptions
+            await self.db.rollback()
             raise
 
         except Exception as e:
-            self.db.rollback()
-            logger.exception(f"Erro ao atualizar usuário: {str(e)}")
+            await self.db.rollback()
+            logger.exception(f"Error updating user: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao atualizar o usuário.",
+                detail="Error updating the user.",
                 original_error=e
             )
 
-    def deactivate_user(self, user_id: UUID) -> dict:
+    async def deactivate_user(self, user_id: UUID) -> dict:
         """
-        Desativa um usuário (soft delete).
+        Deactivate a user (soft delete).
 
         Args:
-            user_id: ID do usuário
+            user_id: User ID
 
         Returns:
-            Mensagem de sucesso
+            Success message
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            DatabaseOperationException: Se houver erro no processo
+            ResourceNotFoundException: If the user is not found
+            DatabaseOperationException: If there's an error in the process
         """
         try:
-            user = self._get_user_by_id(user_id)
+            user = await self._get_user_by_id(user_id)
 
             if not user.is_active:
-                return {"message": f"Usuário '{user.email}' já está inativo."}
+                return {"message": f"User '{user.email}' is already inactive."}
 
             user.is_active = False
 
-            self.db.commit()
-            logger.info(f"Usuário desativado: {user.email}")
-            return {"message": f"Usuário '{user.email}' desativado com sucesso."}
+            await self.db.commit()
+            logger.info(f"User deactivated: {user.email}")
+            return {"message": f"User '{user.email}' successfully deactivated."}
 
         except ResourceNotFoundException:
-            # Repassa exceção já formatada
-            self.db.rollback()
+            # Pass through already formatted exception
+            await self.db.rollback()
             raise
 
         except Exception as e:
-            self.db.rollback()
-            logger.exception(f"Erro ao desativar usuário: {str(e)}")
+            await self.db.rollback()
+            logger.exception(f"Error deactivating user: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao desativar o usuário.",
+                detail="Error deactivating the user.",
                 original_error=e
             )
 
-    def reactivate_user(self, user_id: UUID) -> dict:
+    async def reactivate_user(self, user_id: UUID) -> dict:
         """
-        Reativa um usuário previamente desativado.
+        Reactivate a previously deactivated user.
 
         Args:
-            user_id: ID do usuário
+            user_id: User ID
 
         Returns:
-            Mensagem de sucesso
+            Success message
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado
-            DatabaseOperationException: Se houver erro no processo
+            ResourceNotFoundException: If the user is not found
+            DatabaseOperationException: If there's an error in the process
         """
         try:
-            # Aqui precisamos diretamente buscar o usuário pelo ID sem verificar o status ativo
-            user = self.db.query(User).filter(User.id == user_id).first()
+            # Here we need to directly fetch the user by ID without checking active status
+            from sqlalchemy.future import select
+            query = select(User).where(User.id == user_id)
+            result = await self.db.execute(query)
+            user = result.scalar_one_or_none()
 
             if not user:
-                logger.warning(f"Tentativa de reativar usuário inexistente: {user_id}")
+                logger.warning(f"Attempt to reactivate non-existent user: {user_id}")
                 raise ResourceNotFoundException(
-                    detail="Usuário não encontrado",
+                    detail="User not found",
                     resource_id=user_id
                 )
 
             if user.is_active:
-                return {"message": f"Usuário '{user.email}' já está ativo."}
+                return {"message": f"User '{user.email}' is already active."}
 
             user.is_active = True
 
-            self.db.commit()
-            logger.info(f"Usuário reativado: {user.email}")
-            return {"message": f"Usuário '{user.email}' reativado com sucesso."}
+            await self.db.commit()
+            logger.info(f"User reactivated: {user.email}")
+            return {"message": f"User '{user.email}' successfully reactivated."}
 
         except ResourceNotFoundException:
-            # Repassa exceção já formatada
-            self.db.rollback()
+            # Pass through already formatted exception
+            await self.db.rollback()
             raise
 
         except Exception as e:
-            self.db.rollback()
-            logger.exception(f"Erro ao reativar usuário: {str(e)}")
+            await self.db.rollback()
+            logger.exception(f"Error reactivating user: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao reativar o usuário.",
+                detail="Error reactivating the user.",
                 original_error=e
             )
 
-    def delete_user_permanently(self, user_id: UUID) -> dict:
+    async def delete_user_permanently(self, user_id: UUID) -> dict:
         """
-        Exclui permanentemente um usuário.
+        Permanently delete a user.
 
         Args:
-            user_id: ID do usuário
+            user_id: User ID
 
         Returns:
-            dict: Mensagem de sucesso
+            Success message
 
         Raises:
-            ResourceNotFoundException: Se o usuário não for encontrado.
-            DatabaseOperationException: Se houver erro no processo.
+            ResourceNotFoundException: If the user is not found.
+            DatabaseOperationException: If there's an error in the process.
         """
         try:
-            # Aqui podemos utilizar o método já existente que verifica se o usuário existe
-            user = self._get_user_by_id(user_id)
+            # Here we can use the method that checks if user exists
+            user = await self._get_user_by_id(user_id)
 
-            # Remover usuário de todos os grupos e permissões
+            # Remove user from all groups and permissions
             user.groups = []
             user.permissions = []
 
-            # Deletar o usuário
-            self.db.delete(user)
-            self.db.commit()
+            # Delete the user
+            await self.db.delete(user)
+            await self.db.commit()
 
-            logger.info(f"Usuário excluído permanentemente: {user.email}")
-            return {"message": f"Usuário '{user.email}' excluído permanentemente."}
+            logger.info(f"User permanently deleted: {user.email}")
+            return {"message": f"User '{user.email}' permanently deleted."}
 
         except ResourceNotFoundException:
-            self.db.rollback()
+            await self.db.rollback()
             raise
 
         except Exception as e:
-            self.db.rollback()
-            logger.exception(f"Erro ao excluir usuário permanentemente: {str(e)}")
+            await self.db.rollback()
+            logger.exception(f"Error permanently deleting user: {str(e)}")
             raise DatabaseOperationException(
-                detail="Erro ao excluir o usuário permanentemente.",
+                detail="Error permanently deleting the user.",
                 original_error=e
             )
